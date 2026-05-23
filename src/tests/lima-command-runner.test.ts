@@ -140,6 +140,45 @@ test("executeLiMaCommand reports when no pending task exists", async () => {
   assert.match(response.message, /No pending LiMa task/);
 });
 
+test("executeLiMaCommand handles daemon stop and status", async () => {
+  const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), "lima-daemon-control-"));
+  const stop = await executeLiMaCommand("/lima daemon stop", {
+    projectRoot,
+    client: inertClient(),
+  });
+  const status = await executeLiMaCommand("/lima daemon status", {
+    projectRoot,
+    client: inertClient(),
+  });
+
+  assert.equal(stop.ok, true);
+  assert.match(stop.message, /stop requested/);
+  assert.equal(status.ok, true);
+  assert.match(status.message, /stop pending/);
+});
+
+test("executeLiMaCommand work loop stops when marker is present", async () => {
+  const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), "lima-daemon-stop-"));
+  await executeLiMaCommand("/lima daemon stop", {
+    projectRoot,
+    client: inertClient(),
+  });
+
+  const response = await executeLiMaCommand("/lima work --once", {
+    projectRoot,
+    client: {
+      ...inertClient(),
+      fetchPendingTask: async () => {
+        throw new Error("fetchPendingTask should not be called");
+      },
+    },
+    appendAudit: () => undefined,
+  });
+
+  assert.equal(response.ok, true);
+  assert.match(response.message, /stopped by marker/);
+});
+
 test("executeLiMaCommand work loop processes pending tasks up to max-tasks", async () => {
   const tasks = [buildReviewTask("task-a"), buildReviewTask("task-b")];
   const submitted: string[] = [];
@@ -380,5 +419,23 @@ function buildReviewResult(taskId: string): LiMaAgentTaskResult {
     artifacts: [],
     risks: [],
     next_action: "Submit result.",
+  };
+}
+
+function inertClient() {
+  return {
+    isConfigured: () => true,
+    fetchTask: async () => {
+      throw new Error("fetchTask should not be called");
+    },
+    fetchPendingTask: async () => {
+      throw new Error("fetchPendingTask should not be called");
+    },
+    submitResult: async () => {
+      throw new Error("submitResult should not be called");
+    },
+    fetchTaskEvents: async () => {
+      throw new Error("fetchTaskEvents should not be called");
+    },
   };
 }

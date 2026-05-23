@@ -6,6 +6,7 @@ import { formatLiMaCommandHelp, parseLiMaCommand } from "./commands";
 import { recordTaskFailure, shouldQuarantineTask } from "./failure-quarantine";
 import { runLiMaAgentTask, type LiMaTaskRunnerConfig, type LiMaTaskRunnerRequest } from "./task-runner";
 import { createWorkerBudget } from "./worker-budget";
+import { readWorkerStop, requestWorkerStop } from "./worker-control";
 
 export type LiMaCommandRunnerClient = {
   isConfigured(): boolean;
@@ -65,6 +66,18 @@ export async function executeLiMaCommand(
     const result = await runTask(task, { currentWorkspace: options.projectRoot });
     writeAudit(options.projectRoot, task, result);
     return formatTaskResult(result, false);
+  }
+
+  if (parsed.command.kind === "daemon") {
+    if (parsed.command.action === "stop") {
+      const marker = requestWorkerStop(options.projectRoot);
+      return { ok: true, message: `LiMa worker stop requested: ${marker}` };
+    }
+    const stop = readWorkerStop(options.projectRoot);
+    return {
+      ok: true,
+      message: stop.stop ? `LiMa worker stop pending: ${stop.reason}` : "LiMa worker stop is not pending.",
+    };
   }
 
   if (parsed.command.kind === "next") {
@@ -164,6 +177,11 @@ async function runWorkLoop(options: {
   let processed = 0;
 
   while (true) {
+    const stop = readWorkerStop(options.projectRoot);
+    if (stop.stop) {
+      return { ok: true, message: `LiMa work stopped by marker: ${stop.reason}` };
+    }
+
     if (options.signal?.aborted) {
       return { ok: false, message: `LiMa work aborted after ${processed} task(s).` };
     }
