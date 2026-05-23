@@ -1,5 +1,6 @@
 import * as fs from "fs";
 import * as path from "path";
+import { isRepoAllowed } from "./repo-allowlist";
 
 export const LIMA_ALLOWED_TASK_TOOLS = ["read", "write", "git_diff", "test", "shell_readonly", "mcp"] as const;
 
@@ -8,6 +9,7 @@ export type LiMaAllowedTaskTool = (typeof LIMA_ALLOWED_TASK_TOOLS)[number];
 export type LiMaWorkspaceGuardConfig = {
   currentWorkspace: string;
   allowedRoots?: string[];
+  allowedRepos?: string[];
   maxRuntimeCapSec?: number;
 };
 
@@ -30,11 +32,12 @@ export function resolveLiMaTaskRepo(repo: string, config: LiMaWorkspaceGuardConf
   }
 
   const allowedRoots = normalizeAllowedRoots(config);
-  if (!allowedRoots.some((root) => isSameOrInside(repoRoot, root))) {
-    return {
-      ok: false,
-      error: `LiMa task repo is outside allowed workspace roots: ${repoRoot}`,
-    };
+  const allowed = isRepoAllowed(repoRoot, {
+    currentWorkspace: config.currentWorkspace,
+    allowedRepos: allowedRoots.filter((root) => root !== safeRealPath(path.resolve(config.currentWorkspace))),
+  });
+  if (!allowed.ok) {
+    return allowed;
   }
 
   return { ok: true, value: repoRoot };
@@ -67,7 +70,7 @@ export function resolveLiMaTaskRuntimeSec(
 }
 
 function normalizeAllowedRoots(config: LiMaWorkspaceGuardConfig): string[] {
-  const roots = [config.currentWorkspace, ...(config.allowedRoots ?? [])];
+  const roots = [config.currentWorkspace, ...(config.allowedRoots ?? []), ...(config.allowedRepos ?? [])];
   return roots.map((root) => safeRealPath(path.resolve(root))).filter((root): root is string => Boolean(root));
 }
 
@@ -85,12 +88,4 @@ function safeRealPath(value: string): string | null {
 function normalizePath(value: string): string {
   const resolved = path.resolve(value);
   return process.platform === "win32" ? resolved.toLowerCase() : resolved;
-}
-
-function isSameOrInside(child: string, parent: string): boolean {
-  if (child === parent) {
-    return true;
-  }
-  const relative = path.relative(parent, child);
-  return Boolean(relative && !relative.startsWith("..") && !path.isAbsolute(relative));
 }

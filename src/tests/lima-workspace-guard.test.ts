@@ -25,7 +25,7 @@ test("resolveLiMaTaskRepo rejects parent traversal outside the workspace", () =>
   });
 
   assert.equal(result.ok, false);
-  assert.match(result.ok ? "" : result.error, /outside allowed workspace/);
+  assert.match(result.ok ? "" : result.error, /not allowlisted/);
 });
 
 test("resolveLiMaTaskRepo allows explicitly configured additional roots", () => {
@@ -37,6 +37,19 @@ test("resolveLiMaTaskRepo allows explicitly configured additional roots", () => 
   const result = resolveLiMaTaskRepo(repo, {
     currentWorkspace: workspace,
     allowedRoots: [extraRoot],
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.ok ? result.value : "", fs.realpathSync(repo).toLowerCase());
+});
+
+test("resolveLiMaTaskRepo allows explicitly configured allowed repos", () => {
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "lima-workspace-"));
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), "lima-allowed-repo-"));
+
+  const result = resolveLiMaTaskRepo(repo, {
+    currentWorkspace: workspace,
+    allowedRepos: [repo],
   });
 
   assert.equal(result.ok, true);
