@@ -49,6 +49,24 @@ Edit `~/.lima-code/settings.json` and add the `mcpServers` field:
 
 ## Common MCP Examples
 
+### LiMa Server MCP Preset
+
+LiMa Code now includes LiMa Server MCP preset building for future integration with LiMa's `/mcp/tools/list` and `/mcp/tools/call` HTTP endpoints. This phase builds and validates endpoint metadata only; it does not replace the existing stdio MCP manager.
+
+Prefer environment variables and do not store tokens in project settings:
+
+```powershell
+$env:LIMA_CODE_SERVER_URL = "https://chat.donglicao.com"
+$env:LIMA_CODE_API_KEY = "<YOUR_LIMA_API_KEY>"
+```
+
+If only the OpenAI-compatible base URL is configured, such as `https://chat.donglicao.com/v1`, LiMa Code strips the trailing `/v1` while building the MCP preset and generates:
+
+- `https://chat.donglicao.com/mcp/tools/list`
+- `https://chat.donglicao.com/mcp/tools/call`
+
+LiMa agent tasks must explicitly include `mcp` in `allowed_tools` before calling any `mcp__...` tool.
+
 ### GitHub MCP
 
 Allows LiMa Code to directly operate on GitHub repositories (search code, manage issues/PRs, read/write files, etc.):

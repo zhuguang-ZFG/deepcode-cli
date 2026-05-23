@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 
-export const LIMA_ALLOWED_TASK_TOOLS = ["read", "write", "git_diff", "test", "shell_readonly"] as const;
+export const LIMA_ALLOWED_TASK_TOOLS = ["read", "write", "git_diff", "test", "shell_readonly", "mcp"] as const;
 
 export type LiMaAllowedTaskTool = (typeof LIMA_ALLOWED_TASK_TOOLS)[number];
 

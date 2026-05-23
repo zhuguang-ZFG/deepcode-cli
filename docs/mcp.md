@@ -49,6 +49,24 @@ MCP 工具在 LiMa Code 中的命名格式为 `mcp__<服务名>__<工具名>`，
 
 ## 常用 MCP 示例
 
+### LiMa Server MCP 预设
+
+LiMa Code 现在提供 LiMa Server MCP 预设构建能力，用于后续接入 LiMa 的 `/mcp/tools/list` 和 `/mcp/tools/call` HTTP 端点。当前阶段先生成和校验端点元数据，不替换已有 stdio MCP manager。
+
+推荐使用环境变量，不要把 token 写入项目配置：
+
+```powershell
+$env:LIMA_CODE_SERVER_URL = "https://chat.donglicao.com"
+$env:LIMA_CODE_API_KEY = "<YOUR_LIMA_API_KEY>"
+```
+
+如果只设置了 OpenAI-compatible base URL，例如 `https://chat.donglicao.com/v1`，LiMa Code 会在构建 MCP 预设时去掉末尾 `/v1`，并生成：
+
+- `https://chat.donglicao.com/mcp/tools/list`
+- `https://chat.donglicao.com/mcp/tools/call`
+
+LiMa agent task 必须在 `allowed_tools` 中显式包含 `mcp`，才允许调用 `mcp__...` 工具。
+
 ### GitHub MCP
 
 让 LiMa Code 直接操作 GitHub 仓库（搜索代码、管理 Issue/PR、读写文件等）：
