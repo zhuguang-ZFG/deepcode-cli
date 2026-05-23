@@ -2,7 +2,14 @@ export type LiMaCommand =
   | { kind: "connect" }
   | { kind: "status" }
   | { kind: "next" }
-  | { kind: "work"; mode: "once" | "loop"; maxTasks: number; intervalMs: number; backoffMs: number }
+  | {
+      kind: "work";
+      mode: "once" | "loop";
+      maxTasks: number;
+      maxMinutes: number;
+      intervalMs: number;
+      backoffMs: number;
+    }
   | { kind: "task"; taskId: string }
   | { kind: "review" };
 
@@ -47,7 +54,7 @@ export function formatLiMaCommandHelp(): string {
     "/lima status",
     "/lima next",
     "/lima work --once",
-    "/lima work --loop --max-tasks <n> [--interval-ms <ms>] [--backoff-ms <ms>]",
+    "/lima work --loop --max-tasks <n> [--max-minutes <n>] [--interval-ms <ms>] [--backoff-ms <ms>]",
     "/lima task <task_id>",
     "/lima review",
   ].join("\n");
@@ -61,6 +68,10 @@ function parseWorkCommand(args: string[]): LiMaCommandParseResult {
   }
   if (mode === "loop" && !args.includes("--max-tasks")) {
     return { ok: false, error: "Usage: /lima work --loop requires --max-tasks <n>." };
+  }
+  const maxMinutes = readPositiveInt(args, "--max-minutes", 60);
+  if (!maxMinutes.ok) {
+    return maxMinutes;
   }
   const intervalMs = readPositiveInt(args, "--interval-ms", 5000);
   if (!intervalMs.ok) {
@@ -79,6 +90,7 @@ function parseWorkCommand(args: string[]): LiMaCommandParseResult {
       kind: "work",
       mode,
       maxTasks: maxTasks.value,
+      maxMinutes: maxMinutes.value,
       intervalMs: intervalMs.value,
       backoffMs: backoffMs.value,
     },
@@ -106,5 +118,5 @@ function readPositiveInt(
 }
 
 function usageText(): string {
-  return "Usage: /lima connect | /lima status | /lima next | /lima work --once | /lima work --loop --max-tasks <n> | /lima task <task_id> | /lima review";
+  return "Usage: /lima connect | /lima status | /lima next | /lima work --once | /lima work --loop --max-tasks <n> [--max-minutes <n>] | /lima task <task_id> | /lima review";
 }

@@ -171,6 +171,41 @@ test("executeLiMaCommand work loop processes pending tasks up to max-tasks", asy
   assert.deepEqual(sleeps, [7]);
 });
 
+test("executeLiMaCommand work loop stops when session time budget is reached", async () => {
+  let now = 0;
+  const tasks = [buildReviewTask("task-a"), buildReviewTask("task-b")];
+  const submitted: string[] = [];
+
+  const response = await executeLiMaCommand("/lima work --loop --max-tasks 2 --max-minutes 1 --interval-ms 1", {
+    projectRoot: process.cwd(),
+    client: {
+      isConfigured: () => true,
+      fetchTask: async () => {
+        throw new Error("fetchTask should not be called");
+      },
+      fetchPendingTask: async () => ({ ok: true, value: tasks.shift() ?? null }),
+      submitResult: async (value: LiMaAgentTaskResult) => {
+        submitted.push(value.task_id);
+        return { ok: true, value: { accepted: true } };
+      },
+      fetchTaskEvents: async () => {
+        throw new Error("fetchTaskEvents should not be called");
+      },
+    },
+    runTask: async (task) => {
+      now = 61_000;
+      return buildReviewResult(task.task_id);
+    },
+    appendAudit: () => undefined,
+    sleep: async () => undefined,
+    now: () => now,
+  });
+
+  assert.equal(response.ok, true);
+  assert.match(response.message, /time budget/);
+  assert.deepEqual(submitted, ["task-a"]);
+});
+
 test("executeLiMaCommand work loop stops cleanly when no task is pending", async () => {
   const response = await executeLiMaCommand("/lima work --loop --max-tasks 3 --interval-ms 1", {
     projectRoot: process.cwd(),

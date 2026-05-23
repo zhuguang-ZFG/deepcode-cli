@@ -24,14 +24,31 @@ test("parseLiMaCommand parses next pending task", () => {
 test("parseLiMaCommand parses work once", () => {
   assert.deepEqual(parseLiMaCommand("/lima work --once"), {
     ok: true,
-    command: { kind: "work", mode: "once", maxTasks: 1, intervalMs: 5000, backoffMs: 30000 },
+    command: { kind: "work", mode: "once", maxTasks: 1, maxMinutes: 60, intervalMs: 5000, backoffMs: 30000 },
   });
 });
 
 test("parseLiMaCommand parses bounded work loop", () => {
+  assert.deepEqual(
+    parseLiMaCommand("/lima work --loop --max-tasks 2 --max-minutes 3 --interval-ms 10 --backoff-ms 20"),
+    {
+      ok: true,
+      command: { kind: "work", mode: "loop", maxTasks: 2, maxMinutes: 3, intervalMs: 10, backoffMs: 20 },
+    }
+  );
+});
+
+test("parseLiMaCommand rejects invalid max minutes", () => {
+  const result = parseLiMaCommand("/lima work --loop --max-tasks 2 --max-minutes 0");
+
+  assert.equal(result.ok, false);
+  assert.match(result.ok ? "" : result.error, /max-minutes/);
+});
+
+test("parseLiMaCommand preserves default work loop budget", () => {
   assert.deepEqual(parseLiMaCommand("/lima work --loop --max-tasks 2 --interval-ms 10 --backoff-ms 20"), {
     ok: true,
-    command: { kind: "work", mode: "loop", maxTasks: 2, intervalMs: 10, backoffMs: 20 },
+    command: { kind: "work", mode: "loop", maxTasks: 2, maxMinutes: 60, intervalMs: 10, backoffMs: 20 },
   });
 });
 

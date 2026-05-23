@@ -4,6 +4,7 @@ import type { LiMaAgentTaskRequest, LiMaAgentTaskResult } from "./agent-task-typ
 import { appendLiMaAuditEntry } from "./audit-log";
 import { formatLiMaCommandHelp, parseLiMaCommand } from "./commands";
 import { runLiMaAgentTask, type LiMaTaskRunnerConfig, type LiMaTaskRunnerRequest } from "./task-runner";
+import { createWorkerBudget } from "./worker-budget";
 
 export type LiMaCommandRunnerClient = {
   isConfigured(): boolean;
@@ -24,6 +25,7 @@ export type LiMaCommandRunnerOptions = {
   runTask?: (task: LiMaTaskRunnerRequest, config: LiMaTaskRunnerConfig) => Promise<LiMaAgentTaskResult>;
   appendAudit?: (projectRoot: string, task: LiMaAgentTaskRequest, result: LiMaAgentTaskResult) => void;
   sleep?: (ms: number, signal?: AbortSignal) => Promise<void>;
+  now?: () => number;
   signal?: AbortSignal;
 };
 
@@ -82,6 +84,7 @@ export async function executeLiMaCommand(
       runTask,
       writeAudit,
       sleep: options.sleep ?? sleep,
+      now: options.now,
       signal: options.signal,
     });
   }
@@ -141,20 +144,34 @@ async function runAndSubmitTask(
 }
 
 async function runWorkLoop(options: {
-  command: { mode: "once" | "loop"; maxTasks: number; intervalMs: number; backoffMs: number };
+  command: { mode: "once" | "loop"; maxTasks: number; maxMinutes: number; intervalMs: number; backoffMs: number };
   projectRoot: string;
   client: LiMaCommandRunnerClient;
   runTask: (task: LiMaTaskRunnerRequest, config: LiMaTaskRunnerConfig) => Promise<LiMaAgentTaskResult>;
   writeAudit: (projectRoot: string, task: LiMaAgentTaskRequest, result: LiMaAgentTaskResult) => void;
   sleep: (ms: number, signal?: AbortSignal) => Promise<void>;
+  now?: () => number;
   signal?: AbortSignal;
 }): Promise<LiMaCommandRunnerResult> {
   const taskLines: string[] = [];
+  const budget = createWorkerBudget({
+    maxTasks: options.command.maxTasks,
+    maxMinutes: options.command.maxMinutes,
+    now: options.now,
+  });
   let processed = 0;
 
-  while (processed < options.command.maxTasks) {
+  while (true) {
     if (options.signal?.aborted) {
       return { ok: false, message: `LiMa work aborted after ${processed} task(s).` };
+    }
+
+    const budgetDecision = budget.canStartNext();
+    if (!budgetDecision.ok) {
+      return {
+        ok: true,
+        message: [`LiMa work processed ${processed} task(s).`, ...taskLines, budgetDecision.reason].join("\n"),
+      };
     }
 
     const fetched = await options.client.fetchPendingTask();
@@ -175,6 +192,7 @@ async function runWorkLoop(options: {
       options.writeAudit
     );
     processed += 1;
+    budget.recordTask();
     taskLines.push(firstLine(result.message));
     if (!result.ok) {
       await waitAfterFailure(options.command.backoffMs, options.sleep, options.signal);
