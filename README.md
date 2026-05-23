@@ -3,7 +3,7 @@
 <br/>
 <p align="center">
   <a href='https://github.com/zhuguang-ZFG/deepcode-cli'>
-    <img src='https://avatars.githubusercontent.com/u/118287711?s=200&v=4' width='100' alt="lima-code"/>
+    <img src='resources/lima-code-logo.svg' width='100' alt="LiMa Code logo"/>
   </a>
 </p>
 <h1>LiMa Code CLI</h1>
@@ -16,7 +16,7 @@
 <br/>
 </div>
 
-[LiMa Code](https://github.com/zhuguang-ZFG/deepcode-cli) 是专为 `deepseek-v4` 模型优化的终端 AI 编码助手，支持深度思考、推理强度控制、Agent Skills 以及 MCP 集成。
+[LiMa Code](https://github.com/zhuguang-ZFG/deepcode-cli) 是面向 LiMa 个人编码助手体系改造的终端 AI 编码 worker。它保留 CLI 里的 vibe coding、Agent Skills、MCP、通知和多轮代码工作流，同时可以接入 LiMa Server，由 LiMa 负责模型路由、记忆、健康检查和后端选择。
 
 ## 安装
 
@@ -35,16 +35,23 @@ npm install -g lima-code
 ```json
 {
   "env": {
-    "MODEL": "deepseek-v4-pro",
-    "BASE_URL": "https://api.deepseek.com",
-    "API_KEY": "sk-..."
+    "MODEL": "lima-1.3",
+    "BASE_URL": "https://chat.donglicao.com/v1",
+    "API_KEY": "<YOUR_LIMA_API_KEY>"
   },
-  "thinkingEnabled": true,
-  "reasoningEffort": "max"
+  "thinkingEnabled": false,
+  "reasoningEffort": "high"
 }
 ```
 
-配置文件与 [LiMa Code VSCode 插件](https://github.com/zhuguang-ZFG/deepcode-cli) 共享，无需重复配置。
+也可以把密钥放到环境变量里：
+
+```powershell
+$env:LIMA_CODE_MODEL = "lima-1.3"
+$env:LIMA_CODE_BASE_URL = "https://chat.donglicao.com/v1"
+$env:LIMA_CODE_API_KEY = "<YOUR_LIMA_API_KEY>"
+lima-code
+```
 
 旧的 `~/.deepcode/settings.json` 仍会作为 fallback 被读取，但新的 LiMa Code 配置应使用 `~/.lima-code/settings.json`。
 
@@ -58,10 +65,14 @@ LiMa Code CLI 支持 agent skills，允许您扩展助手的能力：
 - **User-level Skills**：从 `~/.agents/skills/` 目录中发现并激活 skills。
 - **Project-level Skills**：从 `./.agents/skills/` 目录中加载项目专属 skills，并兼容旧的 `./.deepcode/skills/` 目录。
 
-### **为 DeepSeek 优化**
-- 专门为 DeepSeek 模型性能调优。
-- 通过使用[上下文缓存](https://api-docs.deepseek.com/guides/kv_cache)来降低成本。
-- 原生支持[思考模式](https://api-docs.deepseek.com/guides/thinking_mode)和思考强度控制。
+### **LiMa Server 接入**
+- 默认推荐接入 LiMa 的 OpenAI-compatible endpoint。
+- LiMa Code 负责本地 coding worker 体验，LiMa Server 负责模型路由、记忆、健康检查和安全策略。
+- 支持 LiMa agent task contract、MCP preset 和任务结果归档的后续扩展。
+
+### **OpenAI-compatible Provider**
+- 可直连 LiMa、DeepSeek、火山方舟或其他 OpenAI-compatible API。
+- 支持思考模式、推理强度、MCP、联网搜索和任务完成通知。
 
 ## 斜杠命令与按键功能
 
@@ -87,22 +98,23 @@ LiMa Code CLI 支持 agent skills，允许您扩展助手的能力：
 | `Esc`         | 中断当前模型回复           |
 | 连续 `Ctrl+D`   | 退出                 |
 
-## 支持的模型
+## 推荐模型配置
 
-- `deepseek-v4-pro`（推荐使用）
-- `deepseek-v4-flash`
-- 任何其他 OpenAI 兼容模型
+- `lima-1.3`（推荐，通过 LiMa Server 路由）
+- DeepSeek V4 系列
+- 火山方舟 Coding Plan
+- 任何其他 OpenAI-compatible 模型
 
 
 ## 常见问题
 
 ### LiMa Code 是否有 VSCode 插件？
 
-有的。LiMa Code 提供功能完整的 VSCode 插件，可在 [VSCode Marketplace](https://marketplace.visualstudio.com/items?itemName=vegamo.deepcode-vscode) 安装。插件与 CLI 共享 `~/.lima-code/settings.json` 配置文件，可以在终端和编辑器之间无缝切换。
+当前推荐先使用 CLI。旧 VSCode 插件仍可能能读取兼容配置，但还没有以 LiMa Code 新名称完成重新发布；README 不再把旧插件入口作为推荐安装路径。
 
 ### LiMa Code 是否支持理解图片？
 
-LiMa Code 支持多模态，可使用ctrl+v从剪贴板粘贴图片。但目前 deepseek-v4 不支持多模态。有些模型虽然有多模态能力，但对多轮对话请求的限制太严。目前多模态输入推荐使用火山方舟的 Doubao-Seed-2.0-pro 模型，适配效果最好。
+LiMa Code 支持从剪贴板粘贴图片，快捷键是 `Ctrl+V`。图片是否真正可被模型理解，取决于你接入的 LiMa 后端或 OpenAI-compatible provider 是否支持多模态。
 
 ### 怎样在任务完成后自动给 Slack 发消息？
 
@@ -110,7 +122,7 @@ LiMa Code 支持多模态，可使用ctrl+v从剪贴板粘贴图片。但目前 
 
 ### 怎样启用联网搜索功能？
 
-LiMa Code自带免费的、且大部分情况够用的Web Search工具。如果你希望使用自定义脚本进行联网搜索，可以在 `~/.lima-code/settings.json` 中将 `webSearchTool` 设为脚本的完整路径即可。详细步骤可参考：https://github.com/qorzj/web_search_cli
+LiMa Code 自带 Web Search 工具。如果你希望使用自定义搜索脚本，可以在 `~/.lima-code/settings.json` 中将 `webSearchTool` 设为脚本的完整路径。
 
 ### 如何配置 MCP？
 
@@ -191,14 +203,14 @@ npm link
 [npm-downloads-link]: https://www.npmjs.com/package/lima-code
 [npm-downloads-shield]: https://img.shields.io/npm/dt/lima-code?labelColor=black&style=flat-square&color=4d6BFE&cacheSeconds=1800
 [github-contributors-link]: https://github.com/zhuguang-ZFG/deepcode-cli/graphs/contributors
-[github-contributors-shield]: https://img.shields.io/github/contributors/lessweb/lima-code?color=4d6BFE&labelColor=black&style=flat-square&cacheSeconds=1800
+[github-contributors-shield]: https://img.shields.io/github/contributors/zhuguang-ZFG/deepcode-cli?color=4d6BFE&labelColor=black&style=flat-square&cacheSeconds=1800
 [github-forks-link]: https://github.com/zhuguang-ZFG/deepcode-cli/network/members
-[github-forks-shield]: https://img.shields.io/github/forks/lessweb/lima-code?color=4d6BFE&labelColor=black&style=flat-square&cacheSeconds=1800
+[github-forks-shield]: https://img.shields.io/github/forks/zhuguang-ZFG/deepcode-cli?color=4d6BFE&labelColor=black&style=flat-square&cacheSeconds=1800
 [github-stars-link]: https://github.com/zhuguang-ZFG/deepcode-cli/network/stargazers
-[github-stars-shield]: https://img.shields.io/github/stars/lessweb/lima-code?color=4d6BFE&labelColor=black&style=flat-square&cacheSeconds=1800
+[github-stars-shield]: https://img.shields.io/github/stars/zhuguang-ZFG/deepcode-cli?color=4d6BFE&labelColor=black&style=flat-square&cacheSeconds=1800
 [github-issues-link]: https://github.com/zhuguang-ZFG/deepcode-cli/issues
-[github-issues-shield]: https://img.shields.io/github/issues/lessweb/lima-code?color=4d6BFE&labelColor=black&style=flat-square&cacheSeconds=1800
+[github-issues-shield]: https://img.shields.io/github/issues/zhuguang-ZFG/deepcode-cli?color=4d6BFE&labelColor=black&style=flat-square&cacheSeconds=1800
 [github-issues-pr-link]: https://github.com/zhuguang-ZFG/deepcode-cli/pulls
-[github-issues-pr-shield]: https://img.shields.io/github/issues-pr/lessweb/lima-code?color=4d6BFE&labelColor=black&style=flat-square&cacheSeconds=1800
+[github-issues-pr-shield]: https://img.shields.io/github/issues-pr/zhuguang-ZFG/deepcode-cli?color=4d6BFE&labelColor=black&style=flat-square&cacheSeconds=1800
 [github-license-link]: https://github.com/zhuguang-ZFG/deepcode-cli/blob/main/LICENSE
-[github-license-shield]: https://img.shields.io/github/license/lessweb/lima-code?color=4d6BFE&labelColor=black&style=flat-square&cacheSeconds=1800
+[github-license-shield]: https://img.shields.io/github/license/zhuguang-ZFG/deepcode-cli?color=4d6BFE&labelColor=black&style=flat-square&cacheSeconds=1800

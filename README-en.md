@@ -3,7 +3,7 @@
 <br/>
 <p align="center">
   <a href='https://github.com/zhuguang-ZFG/deepcode-cli'>
-    <img src='https://avatars.githubusercontent.com/u/118287711?s=200&v=4' width='100' alt="lima-code"/>
+    <img src='resources/lima-code-logo.svg' width='100' alt="LiMa Code logo"/>
   </a>
 </p>
 <h1>LiMa Code CLI</h1>
@@ -16,7 +16,7 @@ English · [中文](./README.md)
 <br/>
 </div>
 
-[LiMa Code](https://github.com/zhuguang-ZFG/deepcode-cli) is a terminal AI coding assistant optimized for the `deepseek-v4` model, with support for deep thinking, reasoning effort control, Agent Skills, and MCP (Model Context Protocol) integration.
+[LiMa Code](https://github.com/zhuguang-ZFG/deepcode-cli) is a terminal AI coding worker adapted for the LiMa personal coding assistant stack. It keeps the CLI vibe-coding workflow, Agent Skills, MCP, notifications, and multi-turn coding loops, while LiMa Server can handle model routing, memory, health checks, and backend selection.
 
 
 ## Installation
@@ -36,16 +36,23 @@ Create `~/.lima-code/settings.json`:
 ```json
 {
   "env": {
-    "MODEL": "deepseek-v4-pro",
-    "BASE_URL": "https://api.deepseek.com",
-    "API_KEY": "sk-..."
+    "MODEL": "lima-1.3",
+    "BASE_URL": "https://chat.donglicao.com/v1",
+    "API_KEY": "<YOUR_LIMA_API_KEY>"
   },
-  "thinkingEnabled": true,
-  "reasoningEffort": "max"
+  "thinkingEnabled": false,
+  "reasoningEffort": "high"
 }
 ```
 
-The configuration file is shared with the [LiMa Code VSCode extension](https://github.com/zhuguang-ZFG/deepcode-cli) — configure once, use everywhere.
+You can also keep secrets in environment variables:
+
+```powershell
+$env:LIMA_CODE_MODEL = "lima-1.3"
+$env:LIMA_CODE_BASE_URL = "https://chat.donglicao.com/v1"
+$env:LIMA_CODE_API_KEY = "<YOUR_LIMA_API_KEY>"
+lima-code
+```
 
 Legacy `~/.deepcode/settings.json` files are still read as fallbacks, but new LiMa Code configuration should use `~/.lima-code/settings.json`.
 
@@ -59,10 +66,14 @@ LiMa Code CLI supports agent skills that allow you to extend the assistant's cap
 - **User-level Skills**: discovered and activated from `~/.agents/skills/`.
 - **Project-level Skills**: loaded from `./.agents/skills/` for project-specific workflows, with legacy `./.deepcode/skills/` compatibility.
 
-### **Optimized for DeepSeek**
-- Specifically tuned for DeepSeek model performance.
-- Reduce costs by using [Context Caching](https://api-docs.deepseek.com/guides/kv_cache).
-- Natively supports [Thinking Mode](https://api-docs.deepseek.com/guides/thinking_mode) and Effort Control.
+### **LiMa Server Integration**
+- Recommended default: connect to LiMa's OpenAI-compatible endpoint.
+- LiMa Code handles the local coding worker experience; LiMa Server handles routing, memory, health checks, and safety policy.
+- Ready for LiMa agent task contracts, MCP presets, and task-result archival.
+
+### **OpenAI-compatible Provider**
+- Connect directly to LiMa, DeepSeek, Volcano Ark, or any other OpenAI-compatible API.
+- Supports thinking mode, reasoning effort, MCP, web search, and task-completion notifications.
 
 ## Slash Commands & Keyboard Shortcuts
 
@@ -88,21 +99,22 @@ LiMa Code CLI supports agent skills that allow you to extend the assistant's cap
 | `Esc`            | Interrupt the current model turn                         |
 | `Ctrl+D` twice   | Quit LiMa Code                                           |
 
-## Supported Models
+## Recommended Model Setup
 
-- `deepseek-v4-pro` (Recommended)
-- `deepseek-v4-flash`
+- `lima-1.3` (recommended through LiMa Server)
+- DeepSeek V4 series
+- Volcano Ark Coding Plan
 - Any other OpenAI-compatible model
 
 ## FAQ
 
 ### Does LiMa Code have a VSCode extension?
 
-Yes. LiMa Code offers a full-featured VSCode extension, available on the [VSCode Marketplace](https://marketplace.visualstudio.com/items?itemName=vegamo.deepcode-vscode). The extension shares the `~/.lima-code/settings.json` configuration file with the CLI, so you can switch seamlessly between the terminal and the editor.
+The CLI is the recommended entry point right now. The legacy VSCode extension may still read compatible settings, but it has not been republished under the LiMa Code name, so this README no longer points users to the old extension listing as the recommended install path.
 
 ### Does LiMa Code support understanding images?
 
-LiMa Code supports multimodal input — you can paste images from the clipboard with `Ctrl+V`. However, `deepseek-v4` does not support multimodal yet. Some models have multimodal capabilities but impose strict limits on multi-turn dialogue requests. For multimodal input, we recommend using the Volcano Ark `Doubao-Seed-2.0-pro` model, which has the best integration.
+LiMa Code supports image paste from the clipboard with `Ctrl+V`. Whether the image is understood depends on the LiMa backend or OpenAI-compatible provider you connect to.
 
 ### How to automatically send a Slack message after a task completes?
 
@@ -110,7 +122,7 @@ Write a shell notification script that calls a Slack webhook, then set the `noti
 
 ### How do I enable web search?
 
-LiMa Code comes with a built-in, free Web Search tool that works well for most use cases. If you prefer to use a custom script for web search, set the `webSearchTool` field in `~/.lima-code/settings.json` to the full path of your script. For detailed steps, refer to: https://github.com/qorzj/web_search_cli
+LiMa Code comes with a built-in Web Search tool. If you prefer custom search logic, set `webSearchTool` in `~/.lima-code/settings.json` to the full path of your script.
 
 ### Does it support Coding Plan?
 
@@ -192,14 +204,14 @@ If you find this tool helpful, please consider supporting us by:
 [npm-downloads-link]: https://www.npmjs.com/package/lima-code
 [npm-downloads-shield]: https://img.shields.io/npm/dt/lima-code?labelColor=black&style=flat-square&color=4d6BFE&cacheSeconds=1800
 [github-contributors-link]: https://github.com/zhuguang-ZFG/deepcode-cli/graphs/contributors
-[github-contributors-shield]: https://img.shields.io/github/contributors/lessweb/lima-code?color=4d6BFE&labelColor=black&style=flat-square&cacheSeconds=1800
+[github-contributors-shield]: https://img.shields.io/github/contributors/zhuguang-ZFG/deepcode-cli?color=4d6BFE&labelColor=black&style=flat-square&cacheSeconds=1800
 [github-forks-link]: https://github.com/zhuguang-ZFG/deepcode-cli/network/members
-[github-forks-shield]: https://img.shields.io/github/forks/lessweb/lima-code?color=4d6BFE&labelColor=black&style=flat-square&cacheSeconds=1800
+[github-forks-shield]: https://img.shields.io/github/forks/zhuguang-ZFG/deepcode-cli?color=4d6BFE&labelColor=black&style=flat-square&cacheSeconds=1800
 [github-stars-link]: https://github.com/zhuguang-ZFG/deepcode-cli/network/stargazers
-[github-stars-shield]: https://img.shields.io/github/stars/lessweb/lima-code?color=4d6BFE&labelColor=black&style=flat-square&cacheSeconds=1800
+[github-stars-shield]: https://img.shields.io/github/stars/zhuguang-ZFG/deepcode-cli?color=4d6BFE&labelColor=black&style=flat-square&cacheSeconds=1800
 [github-issues-link]: https://github.com/zhuguang-ZFG/deepcode-cli/issues
-[github-issues-shield]: https://img.shields.io/github/issues/lessweb/lima-code?color=4d6BFE&labelColor=black&style=flat-square&cacheSeconds=1800
+[github-issues-shield]: https://img.shields.io/github/issues/zhuguang-ZFG/deepcode-cli?color=4d6BFE&labelColor=black&style=flat-square&cacheSeconds=1800
 [github-issues-pr-link]: https://github.com/zhuguang-ZFG/deepcode-cli/pulls
-[github-issues-pr-shield]: https://img.shields.io/github/issues-pr/lessweb/lima-code?color=4d6BFE&labelColor=black&style=flat-square&cacheSeconds=1800
+[github-issues-pr-shield]: https://img.shields.io/github/issues-pr/zhuguang-ZFG/deepcode-cli?color=4d6BFE&labelColor=black&style=flat-square&cacheSeconds=1800
 [github-license-link]: https://github.com/zhuguang-ZFG/deepcode-cli/blob/main/LICENSE
-[github-license-shield]: https://img.shields.io/github/license/lessweb/lima-code?color=4d6BFE&labelColor=black&style=flat-square&cacheSeconds=1800
+[github-license-shield]: https://img.shields.io/github/license/zhuguang-ZFG/deepcode-cli?color=4d6BFE&labelColor=black&style=flat-square&cacheSeconds=1800

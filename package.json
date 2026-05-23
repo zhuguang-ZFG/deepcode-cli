@@ -18,6 +18,7 @@
     "templates/tools/**",
     "templates/prompts/**",
     "templates/skills/**",
+    "resources/**",
     "README.md",
     "LICENSE"
   ],
