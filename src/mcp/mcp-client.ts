@@ -134,13 +134,12 @@ export class McpClient {
       const isWindows = os.platform() === "win32";
 
       if (isWindows) {
-        // On Windows, shell: true lets cmd.exe resolve the command via
-        // PATHEXT (npx → npx.cmd, etc.) without blindly appending .cmd,
-        // which would break absolute paths like process.execPath.
-        this.process = spawn(this.command, args, {
+        const command = resolveWindowsCommand(this.command);
+        // Resolve common package-manager shims without cmd.exe splitting
+        // absolute paths such as process.execPath under C:\Program Files.
+        this.process = spawn(command, args, {
           stdio: ["pipe", "pipe", "pipe"],
           env: childEnv,
-          shell: true,
           windowsHide: true,
         });
       } else {
@@ -420,4 +419,22 @@ export class McpClient {
     const stderr = this.stderrBuffer.trim();
     return new Error(stderr ? `${message}. stderr: ${stderr}` : message);
   }
+}
+
+function resolveWindowsCommand(command: string): string {
+  const normalized = command.trim();
+  if (!normalized) {
+    return command;
+  }
+  if (path.isAbsolute(normalized) || normalized.includes("\\") || normalized.includes("/")) {
+    return normalized;
+  }
+  if (path.extname(normalized)) {
+    return normalized;
+  }
+  const cmdShims = new Set(["npm", "npx", "pnpm", "yarn"]);
+  if (cmdShims.has(normalized.toLowerCase())) {
+    return `${normalized}.cmd`;
+  }
+  return normalized;
 }

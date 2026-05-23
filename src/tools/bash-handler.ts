@@ -60,7 +60,7 @@ export async function handleBashTool(
   );
   updateSessionCwd(context.sessionId, startCwd, result.cwd);
 
-  if (execution.error || result.exitCode !== 0 || result.signal !== null) {
+  if (execution.error || result.exitCode !== 0 || result.signal !== null || execution.timedOut) {
     const errorMessage = buildErrorMessage(result.exitCode, result.signal, execution.error, execution.timedOut);
     return formatResult({ ...result, ok: false }, "bash", errorMessage);
   }
@@ -131,6 +131,9 @@ async function executeShellCommand(
     let timedOut = false;
     let settled = false;
     let timeoutTimer: ReturnType<typeof setTimeout> | null = null;
+    let stdout = "";
+    let stderr = "";
+    let error: string | undefined;
     const child = spawn(shellPath, shellArgs, {
       cwd,
       env: buildShellEnv(shellPath, configuredEnv),
@@ -152,6 +155,27 @@ async function executeShellCommand(
         timeoutTimer = null;
       }
     };
+    const finish = (code: number | null, signal: string | null) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      stopTimeoutTimer();
+      if (typeof pid === "number") {
+        context.onProcessTimeoutControl?.(pid, null);
+        context.onProcessExit?.(pid);
+      }
+      resolve({
+        stdout,
+        stderr,
+        exitCode: typeof code === "number" ? code : null,
+        signal,
+        error,
+        timedOut,
+        timeoutMs,
+        deadlineAtMs,
+      });
+    };
     const triggerTimeout = () => {
       if (settled || timedOut || typeof pid !== "number") {
         return;
@@ -159,6 +183,9 @@ async function executeShellCommand(
       timedOut = true;
       stopTimeoutTimer();
       killProcessTree(pid, "SIGKILL");
+      child.stdout?.destroy();
+      child.stderr?.destroy();
+      finish(null, "SIGKILL");
     };
     const scheduleTimeout = () => {
       stopTimeoutTimer();
@@ -188,16 +215,18 @@ async function executeShellCommand(
       scheduleTimeout();
     }
 
-    let stdout = "";
-    let stderr = "";
-    let error: string | undefined;
-
     child.stdout?.on("data", (chunk: string | Buffer) => {
+      if (settled) {
+        return;
+      }
       stdout = appendChunk(stdout, chunk);
       const text = typeof chunk === "string" ? chunk : chunk.toString("utf8");
       context.onProcessStdout?.(pid as number, text);
     });
     child.stderr?.on("data", (chunk: string | Buffer) => {
+      if (settled) {
+        return;
+      }
       stderr = appendChunk(stderr, chunk);
       const text = typeof chunk === "string" ? chunk : chunk.toString("utf8");
       context.onProcessStdout?.(pid as number, text);
@@ -208,22 +237,7 @@ async function executeShellCommand(
     });
 
     child.on("close", (code, signal) => {
-      settled = true;
-      stopTimeoutTimer();
-      if (typeof pid === "number") {
-        context.onProcessTimeoutControl?.(pid, null);
-        context.onProcessExit?.(pid);
-      }
-      resolve({
-        stdout,
-        stderr,
-        exitCode: typeof code === "number" ? code : null,
-        signal: signal ?? null,
-        error,
-        timedOut,
-        timeoutMs,
-        deadlineAtMs,
-      });
+      finish(code, signal ?? null);
     });
   });
 }

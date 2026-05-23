@@ -34,7 +34,7 @@ export function logOpenAIChatCompletionDebug(entry: OpenAIChatCompletionDebugEnt
 }
 
 export function getDebugLogPath(): string {
-  return path.join(os.homedir(), ".deepcode", "logs", DEBUG_LOG_FILE);
+  return path.join(getHomeDirectory(), ".lima-code", "logs", DEBUG_LOG_FILE);
 }
 
 export function normalizeDebugError(error: unknown): { name: string; message: string; stack?: string } {
@@ -79,4 +79,12 @@ function toSerializable(value: unknown): unknown {
   }
 
   return walk(value);
+}
+
+function getHomeDirectory(): string {
+  const configured = process.env.LIMA_CODE_HOME?.trim();
+  if (configured) {
+    return configured;
+  }
+  return process.env.HOME?.trim() || os.homedir();
 }
