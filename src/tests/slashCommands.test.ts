@@ -28,6 +28,7 @@ test("buildSlashCommands prefixes skills before built-ins", () => {
     "continue",
     "undo",
     "mcp",
+    "lima",
     "raw",
     "exit",
   ]);
@@ -96,6 +97,13 @@ test("findExactSlashCommand returns built-in /model", () => {
   const item = findExactSlashCommand(items, "/model");
   assert.ok(item);
   assert.equal(item?.kind, "model");
+});
+
+test("findExactSlashCommand returns built-in /lima", () => {
+  const items = buildSlashCommands(skills);
+  const item = findExactSlashCommand(items, "/lima");
+  assert.ok(item);
+  assert.equal(item?.kind, "lima");
 });
 
 test("findExactSlashCommand returns built-in /raw", () => {

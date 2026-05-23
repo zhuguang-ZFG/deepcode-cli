@@ -100,7 +100,7 @@ test("resolveSettings ignores removed legacy env.THINKING", () => {
   assert.equal(resolved.thinkingEnabled, false);
 });
 
-test("resolveSettingsSources applies user, project, and DEEPCODE environment precedence", () => {
+test("resolveSettingsSources applies user, project, and LiMa Code environment precedence", () => {
   const resolved = resolveSettingsSources(
     {
       env: {
@@ -131,6 +131,40 @@ test("resolveSettingsSources applies user, project, and DEEPCODE environment pre
       baseURL: "https://default.example.com",
     },
     {
+      LIMA_CODE_MODEL: "system-model",
+      LIMA_CODE_THINKING_ENABLED: "false",
+      LIMA_CODE_REASONING_EFFORT: "high",
+      LIMA_CODE_DEBUG_LOG_ENABLED: "true",
+      LIMA_CODE_WEBHOOK: "system-webhook",
+      DEEPCODE_MODEL: "legacy-system-model",
+      DEEPCODE_THINKING_ENABLED: "true",
+      DEEPCODE_REASONING_EFFORT: "max",
+      DEEPCODE_DEBUG_LOG_ENABLED: "false",
+      DEEPCODE_WEBHOOK: "legacy-system-webhook",
+    }
+  );
+
+  assert.equal(resolved.model, "system-model");
+  assert.equal(resolved.apiKey, "project-key");
+  assert.equal(resolved.thinkingEnabled, false);
+  assert.equal(resolved.reasoningEffort, "high");
+  assert.equal(resolved.debugLogEnabled, true);
+  assert.equal(resolved.env.WEBHOOK, "system-webhook");
+});
+
+test("resolveSettingsSources keeps DEEPCODE environment as a legacy fallback", () => {
+  const resolved = resolveSettingsSources(
+    {
+      env: {
+        MODEL: "user-env-model",
+      },
+    },
+    null,
+    {
+      model: "default-model",
+      baseURL: "https://default.example.com",
+    },
+    {
       DEEPCODE_MODEL: "system-model",
       DEEPCODE_THINKING_ENABLED: "false",
       DEEPCODE_REASONING_EFFORT: "high",
@@ -140,7 +174,7 @@ test("resolveSettingsSources applies user, project, and DEEPCODE environment pre
   );
 
   assert.equal(resolved.model, "system-model");
-  assert.equal(resolved.apiKey, "project-key");
+  assert.equal(resolved.apiKey, undefined);
   assert.equal(resolved.thinkingEnabled, false);
   assert.equal(resolved.reasoningEffort, "high");
   assert.equal(resolved.debugLogEnabled, true);
@@ -183,7 +217,8 @@ test("resolveSettingsSources merges MCP env with documented priority", () => {
       baseURL: "https://default.example.com",
     },
     {
-      DEEPCODE_MCP_GITHUB_PERSONAL_ACCESS_TOKEN: "system-global",
+      LIMA_CODE_MCP_GITHUB_PERSONAL_ACCESS_TOKEN: "system-global",
+      DEEPCODE_MCP_GITHUB_PERSONAL_ACCESS_TOKEN: "legacy-system-global",
     }
   );
 

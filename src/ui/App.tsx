@@ -780,11 +780,21 @@ function buildStatusLine(entry: SessionEntry): string {
 }
 
 export function readSettings(): DeepcodingSettings | null {
-  return readSettingsFile(getUserSettingsPath());
+  return readFirstSettingsFile(getUserSettingsPath(), getLegacyUserSettingsPath());
 }
 
 export function readProjectSettings(projectRoot: string = process.cwd()): DeepcodingSettings | null {
-  return readSettingsFile(getProjectSettingsPath(projectRoot));
+  return readFirstSettingsFile(getProjectSettingsPath(projectRoot), getLegacyProjectSettingsPath(projectRoot));
+}
+
+function readFirstSettingsFile(...settingsPaths: string[]): DeepcodingSettings | null {
+  for (const settingsPath of settingsPaths) {
+    const settings = readSettingsFile(settingsPath);
+    if (settings) {
+      return settings;
+    }
+  }
+  return null;
 }
 
 function readSettingsFile(settingsPath: string): DeepcodingSettings | null {
@@ -819,13 +829,13 @@ export function writeModelConfigSelection(
   current: ModelConfigSelection = resolveCurrentSettings(),
   projectRoot: string = process.cwd()
 ): { changed: boolean; settings: DeepcodingSettings } {
-  const projectSettingsPath = getProjectSettingsPath(projectRoot);
-  const shouldWriteProjectSettings = fs.existsSync(projectSettingsPath);
-  const rawSettings = shouldWriteProjectSettings ? readProjectSettings(projectRoot) : readSettings();
+  const existingProjectSettingsPath = getExistingProjectSettingsPath(projectRoot);
+  const shouldWriteProjectSettings = existingProjectSettingsPath !== null;
+  const rawSettings = shouldWriteProjectSettings ? readSettingsFile(existingProjectSettingsPath) : readSettings();
   const result = applyModelConfigSelection(rawSettings, current, selection);
   if (result.changed) {
     if (shouldWriteProjectSettings) {
-      writeProjectSettings(result.settings, projectRoot);
+      writeSettingsFile(existingProjectSettingsPath, result.settings);
     } else {
       writeSettings(result.settings);
     }
@@ -848,11 +858,29 @@ export function resolveCurrentSettings(projectRoot: string = process.cwd()): Res
 export { createOpenAIClient } from "../common/openai-client";
 
 function getUserSettingsPath(): string {
+  return path.join(os.homedir(), ".lima-code", "settings.json");
+}
+
+function getLegacyUserSettingsPath(): string {
   return path.join(os.homedir(), ".deepcode", "settings.json");
 }
 
 function getProjectSettingsPath(projectRoot: string): string {
+  return path.join(projectRoot, ".lima-code", "settings.json");
+}
+
+function getLegacyProjectSettingsPath(projectRoot: string): string {
   return path.join(projectRoot, ".deepcode", "settings.json");
+}
+
+function getExistingProjectSettingsPath(projectRoot: string): string | null {
+  const projectSettingsPath = getProjectSettingsPath(projectRoot);
+  if (fs.existsSync(projectSettingsPath)) {
+    return projectSettingsPath;
+  }
+
+  const legacyProjectSettingsPath = getLegacyProjectSettingsPath(projectRoot);
+  return fs.existsSync(legacyProjectSettingsPath) ? legacyProjectSettingsPath : null;
 }
 
 function formatThinkingMode(settings: Pick<ModelConfigSelection, "thinkingEnabled" | "reasoningEffort">): string {

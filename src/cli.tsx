@@ -15,18 +15,20 @@ if (args.includes("--version") || args.includes("-v")) {
 if (args.includes("--help") || args.includes("-h")) {
   process.stdout.write(
     [
-      "deepcode - Deep Code CLI",
+      "lima-code - LiMa Code CLI",
       "",
       "Usage:",
-      "  deepcode                              Launch the interactive TUI in the current directory",
-      "  deepcode -p <prompt>                  Launch with a pre-filled prompt",
-      "  deepcode --prompt <prompt>            Same as -p",
-      "  deepcode --version                    Print the version",
-      "  deepcode --help                       Show this help",
+      "  lima-code                             Launch the interactive TUI in the current directory",
+      "  lima-code -p <prompt>                 Launch with a pre-filled prompt",
+      "  lima-code --prompt <prompt>           Same as -p",
+      "  lima-code --version                   Print the version",
+      "  lima-code --help                      Show this help",
       "",
       "Configuration:",
-      "  ~/.deepcode/settings.json    User-level API key, model, base URL",
-      "  ./.deepcode/settings.json    Project-level settings",
+      "  ~/.lima-code/settings.json   User-level API key, model, base URL",
+      "  ./.lima-code/settings.json   Project-level settings",
+      "  ~/.deepcode/settings.json    Legacy-compatible user-level settings",
+      "  ./.deepcode/settings.json    Legacy-compatible project-level settings",
       "  ~/.agents/skills/*/SKILL.md  User-level skills",
       "  ./.agents/skills/*/SKILL.md  Project-level skills",
       "  ./.deepcode/skills/*/SKILL.md Legacy project-level skills",
@@ -70,7 +72,7 @@ const projectRoot = process.cwd();
 configureWindowsShell();
 
 if (!process.stdin.isTTY) {
-  process.stderr.write("deepcode requires an interactive terminal (TTY). " + "Re-run from a real terminal session.\n");
+  process.stderr.write("lima-code requires an interactive terminal (TTY). " + "Re-run from a real terminal session.\n");
   process.exit(1);
 }
 
@@ -123,7 +125,7 @@ function configureWindowsShell(): void {
     setShellIfWindows();
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    process.stderr.write(`deepcode: ${message}\n`);
+    process.stderr.write(`lima-code: ${message}\n`);
     process.exit(1);
   }
 }
@@ -132,10 +134,10 @@ function readPackageInfo(): PackageInfo {
   try {
     const pkg = require("../package.json") as { name?: unknown; version?: unknown };
     return {
-      name: typeof pkg.name === "string" ? pkg.name : "@vegamo/deepcode-cli",
+      name: typeof pkg.name === "string" ? pkg.name : "lima-code",
       version: typeof pkg.version === "string" ? pkg.version : "",
     };
   } catch {
-    return { name: "@vegamo/deepcode-cli", version: "" };
+    return { name: "lima-code", version: "" };
   }
 }

@@ -55,7 +55,7 @@ export async function handleWebSearchTool(
       ok: false,
       name: "WebSearch",
       error:
-        "WebSearch default mode requires a valid LLM configuration in ~/.deepcode/settings.json or ./.deepcode/settings.json.",
+        "WebSearch default mode requires a valid LLM configuration in ~/.lima-code/settings.json or ./.lima-code/settings.json. Legacy .deepcode settings are still read as a fallback.",
     };
   }
 

@@ -783,6 +783,11 @@ export const PromptInput = React.memo(function PromptInput({
       resetPromptInput();
       return;
     }
+    if (item.kind === "lima") {
+      setBuffer({ text: "/lima ", cursor: "/lima ".length });
+      setShowSkillsDropdown(false);
+      return;
+    }
     if (item.kind === "exit") {
       onSubmit({ text: "/exit", imageUrls: [], command: "exit" });
       setBuffer(EMPTY_BUFFER);

@@ -3,8 +3,8 @@ import * as crypto from "crypto";
 import * as fs from "fs";
 import * as path from "path";
 
-const FILE_HISTORY_AUTHOR_NAME = "DeepCode Checkpoint";
-const FILE_HISTORY_AUTHOR_EMAIL = "deepcode-checkpoint@localhost";
+const FILE_HISTORY_AUTHOR_NAME = "LiMa Code Checkpoint";
+const FILE_HISTORY_AUTHOR_EMAIL = "lima-code-checkpoint@localhost";
 const MANIFEST_PATH = ".deepcode-file-history.json";
 
 type FileHistoryEntry = {

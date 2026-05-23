@@ -10,6 +10,7 @@ export type SlashCommandKind =
   | "continue"
   | "undo"
   | "mcp"
+  | "lima"
   | "raw"
   | "exit";
 
@@ -72,6 +73,12 @@ export const BUILTIN_SLASH_COMMANDS: SlashCommandItem[] = [
     description: "Show MCP server status and available tools",
   },
   {
+    kind: "lima",
+    name: "lima",
+    label: "/lima",
+    description: "Run LiMa Code worker commands: connect, status, task, review",
+  },
+  {
     kind: "raw",
     name: "raw",
     label: "/raw",
@@ -82,7 +89,7 @@ export const BUILTIN_SLASH_COMMANDS: SlashCommandItem[] = [
     kind: "exit",
     name: "exit",
     label: "/exit",
-    description: "Quit Deep Code CLI",
+    description: "Quit LiMa Code CLI",
   },
 ];
 
