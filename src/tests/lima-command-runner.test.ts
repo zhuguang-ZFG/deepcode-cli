@@ -1,13 +1,15 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { execFileSync } from "child_process";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 import type { LiMaAgentTaskRequest, LiMaAgentTaskResult } from "../lima/agent-task-types";
 import { executeLiMaCommand } from "../lima/command-runner";
+import type { LiMaTaskRunnerRequest } from "../lima/task-runner";
 
 test("executeLiMaCommand runs a server task and submits the result", async () => {
-  const task: LiMaAgentTaskRequest = {
+  const task: LiMaTaskRunnerRequest = {
     task_id: "task-1",
     repo: process.cwd(),
     branch: "main",
@@ -337,6 +339,48 @@ test("executeLiMaCommand work loop stops cleanly when no task is pending", async
 
   assert.equal(response.ok, true);
   assert.match(response.message, /No pending LiMa task/);
+});
+
+test("executeLiMaCommand can patch and test a temporary real repo", async () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), "lima-real-repo-"));
+  fs.writeFileSync(path.join(repo, "README.md"), "# Before\n", "utf8");
+  fs.writeFileSync(path.join(repo, "test.js"), "console.log('ok')\n", "utf8");
+  execFileSync("git", ["init"], { cwd: repo });
+  execFileSync("git", ["add", "README.md"], { cwd: repo });
+
+  const task: LiMaAgentTaskRequest = {
+    task_id: "real-repo",
+    repo,
+    branch: "main",
+    goal: "touch file and run tests",
+    constraints: [],
+    allowed_tools: ["write", "git_diff", "test"],
+    max_runtime_sec: 30,
+    mode: "patch",
+    patch_files: [{ file_path: "README.md", content: "# Smoke\n" }],
+    test_commands: ["node test.js"],
+  };
+  const submitted: LiMaAgentTaskResult[] = [];
+
+  const response = await executeLiMaCommand("/lima task real-repo", {
+    projectRoot: repo,
+    client: {
+      isConfigured: () => true,
+      fetchTask: async () => ({ ok: true, value: task }),
+      fetchPendingTask: async () => ({ ok: true, value: null }),
+      submitResult: async (result) => {
+        submitted.push(result);
+        return { ok: true, value: { accepted: true } };
+      },
+      fetchTaskEvents: async () => ({ ok: true, value: [] }),
+    },
+  });
+
+  assert.equal(response.ok, true);
+  assert.equal(submitted.length, 1);
+  assert.deepEqual(submitted[0]?.changed_files, ["README.md"]);
+  assert.deepEqual(submitted[0]?.test_commands, ["node test.js"]);
+  assert.equal(submitted[0]?.test_results[0]?.exit_code, 0);
 });
 
 test("executeLiMaCommand work loop respects abort signal", async () => {

@@ -135,3 +135,31 @@ Allow LiMa Code to process a small batch of Server tasks without becoming an unc
   - Both tasks submitted `needs_review`.
   - Both Server event streams returned `created,result_submitted`.
   - `changedFileCount=0`, so the smoke did not upload local repository diff content.
+
+## Phase 11: Autonomous Worker v0.2 Real Repo Smoke
+
+### Goal
+
+Prove LiMa Code can apply an explicit Server task patch to a real temporary git repository, run explicit tests, and submit structured evidence.
+
+### Decisions
+
+- Patch mode may run tests only when the task includes `test_commands` and `allowed_tools` includes `test`.
+- Patch mode still requires explicit `patch_files`; LiMa Code does not synthesize edits from free-form goals in this path.
+- Server task payloads now preserve optional `patch_files` and `test_commands` so real fetched tasks carry the same evidence-bearing contract as local tests.
+- The public VPS smoke remains pending until the updated Server contract is deployed; do not mark it verified from local-only evidence.
+
+### Evidence
+
+- Red local smoke first failed because patch mode submitted no `test_commands` or `test_results`.
+- Red contract tests then exposed the end-to-end gap: Server task creation and LiMa Code validation did not preserve `patch_files`.
+- Server focused tests: `31 passed`.
+- LiMa Code worker tests: `407 passed, 6 skipped`.
+- `npm.cmd run check`: passed.
+
+### Remaining
+
+- Deploy the Server contract update to VPS.
+- Create one temporary-repo task on the live Server with `patch_files` and `test_commands`.
+- Run `/lima task <task_id>` with LiMa Code against that temporary repo.
+- Confirm live Server evidence includes `created,result_submitted`, `changed_files=["README.md"]`, and one passing test result.

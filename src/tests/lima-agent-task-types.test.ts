@@ -72,6 +72,20 @@ test("validateLiMaAgentTaskRequest accepts lifecycle metadata", () => {
   assert.equal(result.ok ? result.value.worker_id : "", "worker-local");
 });
 
+test("validateLiMaAgentTaskRequest preserves patch files and test commands", () => {
+  const result = validateLiMaAgentTaskRequest({
+    ...validRequest,
+    allowed_tools: ["write", "git_diff", "test"],
+    mode: "patch",
+    patch_files: [{ file_path: "README.md", content: "# Smoke\n" }],
+    test_commands: ["node test.js"],
+  });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.ok ? result.value.patch_files : [], [{ file_path: "README.md", content: "# Smoke\n" }]);
+  assert.deepEqual(result.ok ? result.value.test_commands : [], ["node test.js"]);
+});
+
 test("validateLiMaAgentTaskResult accepts the worker result contract", () => {
   const result = validateLiMaAgentTaskResult(validResult);
 

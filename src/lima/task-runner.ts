@@ -1,7 +1,12 @@
 import { spawn } from "child_process";
 import * as fs from "fs";
 import * as path from "path";
-import type { LiMaAgentTaskRequest, LiMaAgentTaskResult, LiMaAgentTaskTestResult } from "./agent-task-types";
+import type {
+  LiMaAgentTaskPatchFile,
+  LiMaAgentTaskRequest,
+  LiMaAgentTaskResult,
+  LiMaAgentTaskTestResult,
+} from "./agent-task-types";
 import { buildLiMaTaskResult, parseChangedFilesFromGitNameOnly, truncateText } from "./result-builder";
 import {
   assertLiMaTaskToolsAllowed,
@@ -10,10 +15,7 @@ import {
   type LiMaWorkspaceGuardConfig,
 } from "./workspace-guard";
 
-export type LiMaPatchFile = {
-  file_path: string;
-  content: string;
-};
+export type LiMaPatchFile = LiMaAgentTaskPatchFile;
 
 export type LiMaTaskRunnerRequest = LiMaAgentTaskRequest & {
   test_commands?: string[];
@@ -91,6 +93,11 @@ async function runPatchMode(
     return blockedResult(task, "Patch mode requires the write tool.");
   }
 
+  const testCommands = extractTestCommands(task);
+  if (testCommands.length > 0 && !task.allowed_tools.includes("test")) {
+    return blockedResult(task, "Patch mode with test commands requires the test tool.");
+  }
+
   const patchFiles = task.patch_files ?? [];
   for (const patchFile of patchFiles) {
     const target = resolveRepoFile(repoRoot, patchFile.file_path);
@@ -102,15 +109,47 @@ async function runPatchMode(
   }
 
   const diff = await runGitDiff(repoRoot, runtimeSec, config);
+  if (patchFiles.length === 0) {
+    return buildLiMaTaskResult(task, {
+      status: "blocked",
+      summary: "Patch mode requires explicit patch_files; no files were modified.",
+      changedFiles: diff.changedFiles,
+      diffPreview: diff.preview,
+      nextAction: "Provide explicit patch_files.",
+    });
+  }
+
+  if (testCommands.length > 0) {
+    const testRun = await runTestCommands(testCommands, repoRoot, runtimeSec, config);
+    if (!testRun.ok) {
+      return buildLiMaTaskResult(task, {
+        status: "failed",
+        summary: `Applied ${patchFiles.length} file update(s), but test command failed: ${testRun.failedCommand}`,
+        changedFiles: diff.changedFiles,
+        diffPreview: diff.preview,
+        testCommands: testRun.commands,
+        testResults: testRun.results,
+        nextAction: "Fix failing tests before submitting.",
+      });
+    }
+
+    return buildLiMaTaskResult(task, {
+      status: "needs_review",
+      summary: `Applied ${patchFiles.length} file update(s) and all requested test commands passed. No commit was created.`,
+      changedFiles: diff.changedFiles,
+      diffPreview: diff.preview,
+      testCommands: testRun.commands,
+      testResults: testRun.results,
+      nextAction: "Review diff and submit result to LiMa Server.",
+    });
+  }
+
   return buildLiMaTaskResult(task, {
-    status: patchFiles.length > 0 ? "needs_review" : "blocked",
-    summary:
-      patchFiles.length > 0
-        ? `Applied ${patchFiles.length} file update(s). No commit was created.`
-        : "Patch mode requires explicit patch_files; no files were modified.",
+    status: "needs_review",
+    summary: `Applied ${patchFiles.length} file update(s). No commit was created.`,
     changedFiles: diff.changedFiles,
     diffPreview: diff.preview,
-    nextAction: patchFiles.length > 0 ? "Review diff and run tests." : "Provide explicit patch_files.",
+    nextAction: "Review diff and run tests.",
   });
 }
 
@@ -129,32 +168,22 @@ async function runTestMode(
     return blockedResult(task, "Test mode requires at least one test command.");
   }
 
-  const results: LiMaAgentTaskTestResult[] = [];
-  for (const command of commands) {
-    const execution = await executeCommand(command, repoRoot, runtimeSec, config);
-    results.push({
-      command,
-      exit_code: execution.exitCode,
-      duration_ms: execution.durationMs,
-      stdout: truncateText(execution.stdout),
-      stderr: truncateText(execution.stderr),
+  const testRun = await runTestCommands(commands, repoRoot, runtimeSec, config);
+  if (!testRun.ok) {
+    return buildLiMaTaskResult(task, {
+      status: "failed",
+      summary: `Test command failed: ${testRun.failedCommand}`,
+      testCommands: testRun.commands,
+      testResults: testRun.results,
+      nextAction: "Fix failing tests before submitting.",
     });
-    if (execution.exitCode !== 0) {
-      return buildLiMaTaskResult(task, {
-        status: "failed",
-        summary: `Test command failed: ${command}`,
-        testCommands: commands,
-        testResults: results,
-        nextAction: "Fix failing tests before submitting.",
-      });
-    }
   }
 
   return buildLiMaTaskResult(task, {
     status: "succeeded",
     summary: "All requested test commands passed.",
-    testCommands: commands,
-    testResults: results,
+    testCommands: testRun.commands,
+    testResults: testRun.results,
     nextAction: "Submit result to LiMa Server.",
   });
 }
@@ -209,6 +238,32 @@ function extractTestCommands(task: LiMaTaskRunnerRequest): string[] {
     .map((item) => item.slice("test:".length).trim())
     .filter(Boolean);
   return [...explicit, ...fromConstraints];
+}
+
+async function runTestCommands(
+  commands: string[],
+  repoRoot: string,
+  runtimeSec: number,
+  config: LiMaTaskRunnerConfig
+): Promise<
+  | { ok: true; commands: string[]; results: LiMaAgentTaskTestResult[] }
+  | { ok: false; commands: string[]; results: LiMaAgentTaskTestResult[]; failedCommand: string }
+> {
+  const results: LiMaAgentTaskTestResult[] = [];
+  for (const command of commands) {
+    const execution = await executeCommand(command, repoRoot, runtimeSec, config);
+    results.push({
+      command,
+      exit_code: execution.exitCode,
+      duration_ms: execution.durationMs,
+      stdout: truncateText(execution.stdout),
+      stderr: truncateText(execution.stderr),
+    });
+    if (execution.exitCode !== 0) {
+      return { ok: false, commands, results, failedCommand: command };
+    }
+  }
+  return { ok: true, commands, results };
 }
 
 function resolveRepoFile(

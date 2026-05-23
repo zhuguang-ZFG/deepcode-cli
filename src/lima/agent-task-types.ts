@@ -22,6 +22,11 @@ export type LiMaAgentTaskStatus = (typeof LIMA_AGENT_TASK_STATUSES)[number];
 
 export type LiMaTaskValidationResult<T> = { ok: true; value: T } | { ok: false; error: string };
 
+export type LiMaAgentTaskPatchFile = {
+  file_path: string;
+  content: string;
+};
+
 export type LiMaAgentTaskRequest = {
   task_id: string;
   repo: string;
@@ -35,6 +40,8 @@ export type LiMaAgentTaskRequest = {
   lease_expires_at?: number;
   cancel_requested?: boolean;
   failure_count?: number;
+  patch_files?: LiMaAgentTaskPatchFile[];
+  test_commands?: string[];
 };
 
 export type LiMaAgentTaskTestResult = {
@@ -71,6 +78,15 @@ const taskRequestSchema = z.object({
   lease_expires_at: z.number().nonnegative().optional(),
   cancel_requested: z.boolean().optional(),
   failure_count: z.number().int().nonnegative().optional(),
+  patch_files: z
+    .array(
+      z.object({
+        file_path: z.string().trim().min(1),
+        content: z.string(),
+      })
+    )
+    .optional(),
+  test_commands: z.array(z.string().trim().min(1)).optional(),
 });
 
 const taskTestResultSchema = z.object({
