@@ -61,20 +61,23 @@ export async function executeLiMaCommand(
     return formatTaskResult(result, false);
   }
 
+  if (parsed.command.kind === "next") {
+    const fetched = await client.fetchPendingTask();
+    if (!fetched.ok) {
+      return { ok: false, message: fetched.error };
+    }
+    if (!fetched.value) {
+      return { ok: true, message: "No pending LiMa task is available." };
+    }
+    return runAndSubmitTask(fetched.value, options.projectRoot, client, runTask, writeAudit);
+  }
+
   const fetched = await client.fetchTask(parsed.command.taskId);
   if (!fetched.ok) {
     return { ok: false, message: fetched.error };
   }
 
-  const result = await runTask(fetched.value, { currentWorkspace: options.projectRoot });
-  writeAudit(options.projectRoot, fetched.value, result);
-
-  const submitted = await client.submitResult(result);
-  if (!submitted.ok) {
-    return { ok: false, message: `Task ${result.task_id} ran but result submission failed: ${submitted.error}` };
-  }
-
-  return formatTaskResult(result, true);
+  return runAndSubmitTask(fetched.value, options.projectRoot, client, runTask, writeAudit);
 }
 
 function buildLocalReviewTask(projectRoot: string): LiMaTaskRunnerRequest {
@@ -103,6 +106,24 @@ function formatTaskResult(result: LiMaAgentTaskResult, submitted: boolean): LiMa
     lines.push(`Next: ${result.next_action}`);
   }
   return { ok: result.status !== "failed" && result.status !== "blocked", message: lines.join("\n") };
+}
+
+async function runAndSubmitTask(
+  task: LiMaAgentTaskRequest,
+  projectRoot: string,
+  client: LiMaCommandRunnerClient,
+  runTask: (task: LiMaTaskRunnerRequest, config: LiMaTaskRunnerConfig) => Promise<LiMaAgentTaskResult>,
+  writeAudit: (projectRoot: string, task: LiMaAgentTaskRequest, result: LiMaAgentTaskResult) => void
+): Promise<LiMaCommandRunnerResult> {
+  const result = await runTask(task, { currentWorkspace: projectRoot });
+  writeAudit(projectRoot, task, result);
+
+  const submitted = await client.submitResult(result);
+  if (!submitted.ok) {
+    return { ok: false, message: `Task ${result.task_id} ran but result submission failed: ${submitted.error}` };
+  }
+
+  return formatTaskResult(result, true);
 }
 
 export function formatLiMaCommandRunnerHelp(): string {

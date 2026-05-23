@@ -1,6 +1,7 @@
 export type LiMaCommand =
   | { kind: "connect" }
   | { kind: "status" }
+  | { kind: "next" }
   | { kind: "task"; taskId: string }
   | { kind: "review" };
 
@@ -19,6 +20,9 @@ export function parseLiMaCommand(input: string): LiMaCommandParseResult {
   if (subcommand === "status") {
     return { ok: true, command: { kind: "status" } };
   }
+  if (subcommand === "next") {
+    return { ok: true, command: { kind: "next" } };
+  }
   if (subcommand === "review") {
     return { ok: true, command: { kind: "review" } };
   }
@@ -30,9 +34,9 @@ export function parseLiMaCommand(input: string): LiMaCommandParseResult {
     return { ok: true, command: { kind: "task", taskId } };
   }
 
-  return { ok: false, error: "Usage: /lima connect | /lima status | /lima task <task_id> | /lima review" };
+  return { ok: false, error: "Usage: /lima connect | /lima status | /lima next | /lima task <task_id> | /lima review" };
 }
 
 export function formatLiMaCommandHelp(): string {
-  return ["/lima connect", "/lima status", "/lima task <task_id>", "/lima review"].join("\n");
+  return ["/lima connect", "/lima status", "/lima next", "/lima task <task_id>", "/lima review"].join("\n");
 }

@@ -17,6 +17,10 @@ test("parseLiMaCommand parses task id", () => {
   });
 });
 
+test("parseLiMaCommand parses next pending task", () => {
+  assert.deepEqual(parseLiMaCommand("/lima next"), { ok: true, command: { kind: "next" } });
+});
+
 test("parseLiMaCommand parses review", () => {
   assert.deepEqual(parseLiMaCommand("/lima review"), { ok: true, command: { kind: "review" } });
 });
@@ -39,5 +43,6 @@ test("formatLiMaCommandHelp lists supported subcommands", () => {
   const help = formatLiMaCommandHelp();
 
   assert.match(help, /\/lima connect/);
+  assert.match(help, /\/lima next/);
   assert.match(help, /\/lima task <task_id>/);
 });

@@ -61,6 +61,82 @@ test("executeLiMaCommand runs a server task and submits the result", async () =>
   assert.deepEqual(submitted, result);
 });
 
+test("executeLiMaCommand claims the next pending task and submits the result", async () => {
+  const task: LiMaAgentTaskRequest = {
+    task_id: "task-next",
+    repo: process.cwd(),
+    branch: "main",
+    goal: "Run next review",
+    constraints: [],
+    allowed_tools: ["git_diff"],
+    max_runtime_sec: 60,
+    mode: "review",
+  };
+  const result: LiMaAgentTaskResult = {
+    task_id: "task-next",
+    status: "needs_review",
+    summary: "Next task reviewed.",
+    changed_files: [],
+    test_commands: [],
+    test_results: [],
+    diff_preview: "",
+    artifacts: [],
+    risks: [],
+    next_action: "Submit result.",
+  };
+  let submitted: LiMaAgentTaskResult | null = null;
+
+  const response = await executeLiMaCommand("/lima next", {
+    projectRoot: process.cwd(),
+    client: {
+      isConfigured: () => true,
+      fetchTask: async () => {
+        throw new Error("fetchTask should not be called");
+      },
+      fetchPendingTask: async () => ({ ok: true, value: task }),
+      submitResult: async (value: LiMaAgentTaskResult) => {
+        submitted = value;
+        return { ok: true, value: { accepted: true } };
+      },
+      fetchTaskEvents: async () => {
+        throw new Error("fetchTaskEvents should not be called");
+      },
+    },
+    runTask: async (receivedTask) => {
+      assert.equal(receivedTask, task);
+      return result;
+    },
+    appendAudit: () => undefined,
+  });
+
+  assert.equal(response.ok, true);
+  assert.match(response.message, /task-next/);
+  assert.deepEqual(submitted, result);
+});
+
+test("executeLiMaCommand reports when no pending task exists", async () => {
+  const response = await executeLiMaCommand("/lima next", {
+    projectRoot: process.cwd(),
+    client: {
+      isConfigured: () => true,
+      fetchTask: async () => {
+        throw new Error("fetchTask should not be called");
+      },
+      fetchPendingTask: async () => ({ ok: true, value: null }),
+      submitResult: async () => {
+        throw new Error("submitResult should not be called");
+      },
+      fetchTaskEvents: async () => {
+        throw new Error("fetchTaskEvents should not be called");
+      },
+    },
+    appendAudit: () => undefined,
+  });
+
+  assert.equal(response.ok, true);
+  assert.match(response.message, /No pending LiMa task/);
+});
+
 test("executeLiMaCommand reports connect status without exposing the api key", async () => {
   const response = await executeLiMaCommand("/lima connect", {
     projectRoot: process.cwd(),

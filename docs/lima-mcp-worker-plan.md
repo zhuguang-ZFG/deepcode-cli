@@ -63,6 +63,7 @@ Make the LiMa worker path usable from the CLI, not only from isolated modules.
 ### Decisions
 
 - `/lima task <task_id>` is handled locally by LiMa Code and is not sent to the model as a chat prompt.
+- `/lima next` claims one pending `accepted` task from LiMa Server, runs it locally, and submits the result.
 - LiMa Code fetches the task from LiMa Server, runs it through the guarded local task runner, writes a local audit entry, and submits the structured result back to LiMa Server.
 - `/lima review` remains local-only and uses the same guarded review path against the current git diff.
 - Local audit output is written under `.lima-code/audit.jsonl`; `.lima-code/` is ignored by Git because it may contain local settings or credentials.
@@ -80,3 +81,28 @@ Make the LiMa worker path usable from the CLI, not only from isolated modules.
   - Worker ran read-only `review` mode over `D:\GIT\deepcode-cli`.
   - Result submitted to Server as `needs_review`.
   - Server event endpoint returned `created,result_submitted`.
+
+## Phase 9: Single-Claim Worker Command
+
+### Goal
+
+Let LiMa Code behave like a worker without requiring the user to manually copy a task id.
+
+### Decisions
+
+- Add `/lima next` as a single-claim command.
+- It uses `GET /agent/tasks?status=accepted&limit=1` through `LiMaAgentTaskClient.fetchPendingTask()`.
+- If no task exists, it exits successfully with a clear "No pending LiMa task" message.
+- It deliberately claims only one task per invocation. A daemon loop should be a later phase with explicit pause/backoff/stop controls.
+
+### Evidence
+
+- Parser and runner regression tests cover `/lima next`, no-task behavior, execution, and result submission.
+- LiMa worker targeted tests: `52 passed`.
+- `npm.cmd run check`: passed.
+- Full LiMa Code test suite: `371 passed, 7 skipped`.
+- Public end-to-end smoke:
+  - LiMa Server created task `eb9410e1`.
+  - LiMa Code executed `/lima next` against `https://chat.donglicao.com`.
+  - Worker selected the pending task, ran read-only review mode, and submitted `needs_review`.
+  - Server detail confirmed `hasResult=true`; events endpoint returned `created,result_submitted`.
