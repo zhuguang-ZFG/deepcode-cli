@@ -106,6 +106,25 @@ export class LiMaAgentTaskClient {
     return { ok: true, value: Array.isArray(payload.events) ? payload.events : [] };
   }
 
+  async quarantineTask(taskId: string): Promise<LiMaAgentTaskClientResult<{ status: "quarantined" }>> {
+    const ready = this.requireConfig();
+    if (!ready.ok) {
+      return ready;
+    }
+    const id = taskId.trim();
+    if (!id) {
+      return { ok: false, error: "LiMa task id is required." };
+    }
+
+    const response = await this.request(`/agent/tasks/${encodeURIComponent(id)}/quarantine`, {
+      method: "POST",
+    });
+    if (!response.ok) {
+      return response;
+    }
+    return { ok: true, value: { status: "quarantined" } };
+  }
+
   private requireConfig(): LiMaAgentTaskClientResult<never> | { ok: true } {
     if (!this.serverUrl) {
       return { ok: false, error: "LIMA_CODE_SERVER_URL or lima.serverUrl is required." };

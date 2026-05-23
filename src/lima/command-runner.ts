@@ -3,6 +3,7 @@ import type { LiMaAgentTaskClientResult } from "./agent-task-client";
 import type { LiMaAgentTaskRequest, LiMaAgentTaskResult } from "./agent-task-types";
 import { appendLiMaAuditEntry } from "./audit-log";
 import { formatLiMaCommandHelp, parseLiMaCommand } from "./commands";
+import { recordTaskFailure, shouldQuarantineTask } from "./failure-quarantine";
 import { runLiMaAgentTask, type LiMaTaskRunnerConfig, type LiMaTaskRunnerRequest } from "./task-runner";
 import { createWorkerBudget } from "./worker-budget";
 
@@ -12,6 +13,7 @@ export type LiMaCommandRunnerClient = {
   fetchPendingTask(): Promise<LiMaAgentTaskClientResult<LiMaAgentTaskRequest | null>>;
   submitResult(result: LiMaAgentTaskResult): Promise<LiMaAgentTaskClientResult<{ accepted: boolean }>>;
   fetchTaskEvents(taskId: string): Promise<LiMaAgentTaskClientResult<unknown[]>>;
+  quarantineTask?(taskId: string): Promise<LiMaAgentTaskClientResult<{ status: "quarantined" }>>;
 };
 
 export type LiMaCommandRunnerResult = {
@@ -195,6 +197,29 @@ async function runWorkLoop(options: {
     budget.recordTask();
     taskLines.push(firstLine(result.message));
     if (!result.ok) {
+      const failure = recordTaskFailure(options.projectRoot, fetched.value.task_id, result.message);
+      const quarantine = shouldQuarantineTask(options.projectRoot, fetched.value.task_id, 3);
+      if (quarantine.quarantine && options.client.quarantineTask) {
+        const quarantined = await options.client.quarantineTask(fetched.value.task_id);
+        if (!quarantined.ok) {
+          return {
+            ok: false,
+            message: [
+              `LiMa work stopped after ${processed} task(s).`,
+              ...taskLines,
+              `Task ${fetched.value.task_id} reached quarantine threshold but Server update failed: ${quarantined.error}`,
+            ].join("\n"),
+          };
+        }
+        return {
+          ok: false,
+          message: [
+            `LiMa work stopped after ${processed} task(s).`,
+            ...taskLines,
+            `Task ${fetched.value.task_id} quarantined after ${failure.failure_count} failure(s): ${quarantine.reason}`,
+          ].join("\n"),
+        };
+      }
       await waitAfterFailure(options.command.backoffMs, options.sleep, options.signal);
       return {
         ok: false,

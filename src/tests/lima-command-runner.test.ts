@@ -1,5 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import * as fs from "fs";
+import * as os from "os";
+import * as path from "path";
 import type { LiMaAgentTaskRequest, LiMaAgentTaskResult } from "../lima/agent-task-types";
 import { executeLiMaCommand } from "../lima/command-runner";
 
@@ -204,6 +207,51 @@ test("executeLiMaCommand work loop stops when session time budget is reached", a
   assert.equal(response.ok, true);
   assert.match(response.message, /time budget/);
   assert.deepEqual(submitted, ["task-a"]);
+});
+
+test("executeLiMaCommand quarantines repeated task failures", async () => {
+  const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), "lima-quarantine-runner-"));
+  const stateDir = path.join(projectRoot, ".lima-code");
+  fs.mkdirSync(stateDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(stateDir, "quarantine.json"),
+    JSON.stringify({
+      "task-a": {
+        task_id: "task-a",
+        failure_count: 2,
+        last_error: "previous failure",
+        updated_at: "2026-05-23T00:00:00.000Z",
+      },
+    }),
+    "utf8"
+  );
+  const task = buildReviewTask("task-a");
+  let quarantined = "";
+
+  const response = await executeLiMaCommand("/lima work --once --backoff-ms 1", {
+    projectRoot,
+    client: {
+      isConfigured: () => true,
+      fetchTask: async () => {
+        throw new Error("fetchTask should not be called");
+      },
+      fetchPendingTask: async () => ({ ok: true, value: task }),
+      submitResult: async () => ({ ok: true, value: { accepted: true } }),
+      fetchTaskEvents: async () => {
+        throw new Error("fetchTaskEvents should not be called");
+      },
+      quarantineTask: async (taskId: string) => {
+        quarantined = taskId;
+        return { ok: true, value: { status: "quarantined" } };
+      },
+    },
+    runTask: async () => ({ ...buildReviewResult("task-a"), status: "failed", summary: "failed again" }),
+    appendAudit: () => undefined,
+  });
+
+  assert.equal(response.ok, false);
+  assert.match(response.message, /quarantined/);
+  assert.equal(quarantined, "task-a");
 });
 
 test("executeLiMaCommand work loop stops cleanly when no task is pending", async () => {

@@ -128,6 +128,21 @@ test("LiMaAgentTaskClient fetches task events", async () => {
   assert.deepEqual(result.ok ? result.value : [], [{ type: "started" }]);
 });
 
+test("LiMaAgentTaskClient quarantines a task", async () => {
+  const calls: Array<{ url: string; init: RequestInit }> = [];
+  const client = new LiMaAgentTaskClient({
+    serverUrl: "https://lima.example.com",
+    apiKey: "sk-test",
+    fetch: createFetch(calls, { task_id: "task-1", status: "quarantined" }),
+  });
+
+  const result = await client.quarantineTask("task-1");
+
+  assert.deepEqual(result, { ok: true, value: { status: "quarantined" } });
+  assert.equal(calls[0]?.url, "https://lima.example.com/agent/tasks/task-1/quarantine");
+  assert.equal(calls[0]?.init.method, "POST");
+});
+
 function createFetch(calls: Array<{ url: string; init: RequestInit }>, payload: unknown, status = 200): typeof fetch {
   return (async (input: string | URL | Request, init?: RequestInit) => {
     calls.push({ url: String(input), init: init ?? {} });
