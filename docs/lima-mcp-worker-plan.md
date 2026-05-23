@@ -32,6 +32,24 @@ Expose a small, explicit LiMa MCP preset for LiMa Server endpoints and add a tas
 - No replacement of stdio MCP with HTTP MCP in the core manager yet.
 - No automatic GitHub/browser/database MCP enablement.
 
-### Next Phase
+## Phase 7: LiMa HTTP MCP Client
+
+### Goal
+
+Add a LiMa-only HTTP MCP client that can call the preset endpoints without changing the generic stdio MCP manager.
+
+### Decisions
+
+- Use `GET /mcp/tools/list` for tool discovery.
+- Use `POST /mcp/tools/call` with `{ name, arguments }` for tool execution.
+- Accept both native MCP-style responses and simple LiMa Server responses, then normalize them into LiMa Code's existing MCP-like shape.
+- Keep fetch injectable so tests do not need network access.
+
+### Implementation Scope
+
+- `src/lima/http-mcp-client.ts`: list tools and call tools over HTTP.
+- Tests for request shape, response normalization, and HTTP error handling.
+
+## Later Phase
 
 Add a small HTTP MCP adapter once LiMa Server exposes stable tool list and tool call schemas. Then decide whether to plug it into `McpManager` directly or keep it as a LiMa-only worker channel.

@@ -51,7 +51,7 @@ Edit `~/.lima-code/settings.json` and add the `mcpServers` field:
 
 ### LiMa Server MCP Preset
 
-LiMa Code now includes LiMa Server MCP preset building for future integration with LiMa's `/mcp/tools/list` and `/mcp/tools/call` HTTP endpoints. This phase builds and validates endpoint metadata only; it does not replace the existing stdio MCP manager.
+LiMa Code now includes a LiMa Server MCP preset and dedicated HTTP client for LiMa's `/mcp/tools/list` and `/mcp/tools/call` HTTP endpoints. This phase does not replace the existing stdio MCP manager.
 
 Prefer environment variables and do not store tokens in project settings:
 

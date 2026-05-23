@@ -51,7 +51,7 @@ MCP 工具在 LiMa Code 中的命名格式为 `mcp__<服务名>__<工具名>`，
 
 ### LiMa Server MCP 预设
 
-LiMa Code 现在提供 LiMa Server MCP 预设构建能力，用于后续接入 LiMa 的 `/mcp/tools/list` 和 `/mcp/tools/call` HTTP 端点。当前阶段先生成和校验端点元数据，不替换已有 stdio MCP manager。
+LiMa Code 现在提供 LiMa Server MCP 预设和专用 HTTP client，用于接入 LiMa 的 `/mcp/tools/list` 和 `/mcp/tools/call` HTTP 端点。当前阶段不替换已有 stdio MCP manager。
 
 推荐使用环境变量，不要把 token 写入项目配置：
 
