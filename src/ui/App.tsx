@@ -65,6 +65,7 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
   const writeRef = useRef(write);
   const lastRenderedColumnsRef = useRef<number | null>(null);
   const messagesRef = useRef<SessionMessage[]>([]);
+  const limaCommandAbortRef = useRef<AbortController | null>(null);
   const [view, setView] = useState<View>("chat");
   const [busy, setBusy] = useState(false);
   const [skills, setSkills] = useState<SkillInfo[]>([]);
@@ -257,8 +258,10 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
         setBusy(true);
         setErrorLine(null);
         setMessages((prev) => [...prev, buildSyntheticUserMessage(submission.text, 0)]);
+        const abortController = new AbortController();
+        limaCommandAbortRef.current = abortController;
         try {
-          const result = await executeLiMaCommand(submission.text, { projectRoot });
+          const result = await executeLiMaCommand(submission.text, { projectRoot, signal: abortController.signal });
           setMessages((prev) => [...prev, buildSyntheticAssistantMessage(result.message)]);
           if (!result.ok) {
             setErrorLine(result.message);
@@ -271,6 +274,7 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
           setBusy(false);
           setStreamProgress(null);
           setRunningProcesses(null);
+          limaCommandAbortRef.current = null;
         }
         return;
       }
@@ -315,6 +319,10 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
   );
 
   const handleInterrupt = useCallback(() => {
+    if (limaCommandAbortRef.current) {
+      limaCommandAbortRef.current.abort();
+      return;
+    }
     sessionManager.interruptActiveSession();
   }, [sessionManager]);
 

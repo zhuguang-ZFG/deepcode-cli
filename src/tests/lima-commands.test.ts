@@ -21,6 +21,27 @@ test("parseLiMaCommand parses next pending task", () => {
   assert.deepEqual(parseLiMaCommand("/lima next"), { ok: true, command: { kind: "next" } });
 });
 
+test("parseLiMaCommand parses work once", () => {
+  assert.deepEqual(parseLiMaCommand("/lima work --once"), {
+    ok: true,
+    command: { kind: "work", mode: "once", maxTasks: 1, intervalMs: 5000, backoffMs: 30000 },
+  });
+});
+
+test("parseLiMaCommand parses bounded work loop", () => {
+  assert.deepEqual(parseLiMaCommand("/lima work --loop --max-tasks 2 --interval-ms 10 --backoff-ms 20"), {
+    ok: true,
+    command: { kind: "work", mode: "loop", maxTasks: 2, intervalMs: 10, backoffMs: 20 },
+  });
+});
+
+test("parseLiMaCommand rejects unbounded work loop", () => {
+  const result = parseLiMaCommand("/lima work --loop");
+
+  assert.equal(result.ok, false);
+  assert.match(result.ok ? "" : result.error, /max-tasks/);
+});
+
 test("parseLiMaCommand parses review", () => {
   assert.deepEqual(parseLiMaCommand("/lima review"), { ok: true, command: { kind: "review" } });
 });
@@ -44,5 +65,6 @@ test("formatLiMaCommandHelp lists supported subcommands", () => {
 
   assert.match(help, /\/lima connect/);
   assert.match(help, /\/lima next/);
+  assert.match(help, /\/lima work --once/);
   assert.match(help, /\/lima task <task_id>/);
 });

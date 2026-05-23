@@ -23,6 +23,8 @@ export type LiMaCommandRunnerOptions = {
   client?: LiMaCommandRunnerClient;
   runTask?: (task: LiMaTaskRunnerRequest, config: LiMaTaskRunnerConfig) => Promise<LiMaAgentTaskResult>;
   appendAudit?: (projectRoot: string, task: LiMaAgentTaskRequest, result: LiMaAgentTaskResult) => void;
+  sleep?: (ms: number, signal?: AbortSignal) => Promise<void>;
+  signal?: AbortSignal;
 };
 
 export async function executeLiMaCommand(
@@ -70,6 +72,18 @@ export async function executeLiMaCommand(
       return { ok: true, message: "No pending LiMa task is available." };
     }
     return runAndSubmitTask(fetched.value, options.projectRoot, client, runTask, writeAudit);
+  }
+
+  if (parsed.command.kind === "work") {
+    return runWorkLoop({
+      command: parsed.command,
+      projectRoot: options.projectRoot,
+      client,
+      runTask,
+      writeAudit,
+      sleep: options.sleep ?? sleep,
+      signal: options.signal,
+    });
   }
 
   const fetched = await client.fetchTask(parsed.command.taskId);
@@ -124,6 +138,93 @@ async function runAndSubmitTask(
   }
 
   return formatTaskResult(result, true);
+}
+
+async function runWorkLoop(options: {
+  command: { mode: "once" | "loop"; maxTasks: number; intervalMs: number; backoffMs: number };
+  projectRoot: string;
+  client: LiMaCommandRunnerClient;
+  runTask: (task: LiMaTaskRunnerRequest, config: LiMaTaskRunnerConfig) => Promise<LiMaAgentTaskResult>;
+  writeAudit: (projectRoot: string, task: LiMaAgentTaskRequest, result: LiMaAgentTaskResult) => void;
+  sleep: (ms: number, signal?: AbortSignal) => Promise<void>;
+  signal?: AbortSignal;
+}): Promise<LiMaCommandRunnerResult> {
+  const taskLines: string[] = [];
+  let processed = 0;
+
+  while (processed < options.command.maxTasks) {
+    if (options.signal?.aborted) {
+      return { ok: false, message: `LiMa work aborted after ${processed} task(s).` };
+    }
+
+    const fetched = await options.client.fetchPendingTask();
+    if (!fetched.ok) {
+      await waitAfterFailure(options.command.backoffMs, options.sleep, options.signal);
+      return { ok: false, message: `LiMa work stopped after fetch error: ${fetched.error}` };
+    }
+    if (!fetched.value) {
+      const prefix = processed > 0 ? `LiMa work processed ${processed} task(s). ` : "";
+      return { ok: true, message: `${prefix}No pending LiMa task is available.` };
+    }
+
+    const result = await runAndSubmitTask(
+      fetched.value,
+      options.projectRoot,
+      options.client,
+      options.runTask,
+      options.writeAudit
+    );
+    processed += 1;
+    taskLines.push(firstLine(result.message));
+    if (!result.ok) {
+      await waitAfterFailure(options.command.backoffMs, options.sleep, options.signal);
+      return {
+        ok: false,
+        message: [`LiMa work stopped after ${processed} task(s).`, ...taskLines, result.message].join("\n"),
+      };
+    }
+
+    if (options.command.mode === "once" || processed >= options.command.maxTasks) {
+      break;
+    }
+    await options.sleep(options.command.intervalMs, options.signal);
+  }
+
+  return { ok: true, message: [`LiMa work processed ${processed} task(s).`, ...taskLines].join("\n") };
+}
+
+function firstLine(value: string): string {
+  return value.split(/\r?\n/, 1)[0] ?? value;
+}
+
+async function waitAfterFailure(
+  backoffMs: number,
+  sleepImpl: (ms: number, signal?: AbortSignal) => Promise<void>,
+  signal?: AbortSignal
+): Promise<void> {
+  try {
+    await sleepImpl(backoffMs, signal);
+  } catch {
+    // An abort during backoff should not hide the original failure.
+  }
+}
+
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new Error("LiMa work aborted."));
+      return;
+    }
+    const timer = setTimeout(resolve, ms);
+    signal?.addEventListener(
+      "abort",
+      () => {
+        clearTimeout(timer);
+        reject(new Error("LiMa work aborted."));
+      },
+      { once: true }
+    );
+  });
 }
 
 export function formatLiMaCommandRunnerHelp(): string {

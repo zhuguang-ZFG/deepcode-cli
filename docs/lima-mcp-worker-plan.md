@@ -106,3 +106,32 @@ Let LiMa Code behave like a worker without requiring the user to manually copy a
   - LiMa Code executed `/lima next` against `https://chat.donglicao.com`.
   - Worker selected the pending task, ran read-only review mode, and submitted `needs_review`.
   - Server detail confirmed `hasResult=true`; events endpoint returned `created,result_submitted`.
+
+## Phase 10: Bounded Worker Loop
+
+### Goal
+
+Allow LiMa Code to process a small batch of Server tasks without becoming an uncontrolled background daemon.
+
+### Decisions
+
+- Add `/lima work --once` as an explicit alias for one controlled worker pass.
+- Add `/lima work --loop --max-tasks <n>` for bounded loops.
+- Require `--max-tasks` for loop mode and cap it at 100.
+- Default interval is `5000ms`; default failure backoff is `30000ms`.
+- The loop stops when there are no pending tasks, when it reaches `maxTasks`, when a task fails, or when the UI abort signal fires.
+- UI Ctrl+C/Esc now aborts an active LiMa worker command instead of only interrupting LLM chat.
+- Do not make this a daemon yet; a daemon needs separate lifecycle, backoff, and observability controls.
+
+### Evidence
+
+- Parser/runner tests cover `--once`, bounded loop, unbounded-loop rejection, no-task behavior, max-task stopping, and abort handling.
+- LiMa worker targeted tests: `58 passed`.
+- `npm.cmd run check`: passed.
+- Full LiMa Code test suite: `377 passed, 7 skipped`.
+- Public empty-repo smoke:
+  - Created Server tasks `3428f2b5` and `ae549d08`.
+  - Ran `/lima work --loop --max-tasks 2 --interval-ms 1` against a temporary empty directory.
+  - Both tasks submitted `needs_review`.
+  - Both Server event streams returned `created,result_submitted`.
+  - `changedFileCount=0`, so the smoke did not upload local repository diff content.

@@ -137,6 +137,92 @@ test("executeLiMaCommand reports when no pending task exists", async () => {
   assert.match(response.message, /No pending LiMa task/);
 });
 
+test("executeLiMaCommand work loop processes pending tasks up to max-tasks", async () => {
+  const tasks = [buildReviewTask("task-a"), buildReviewTask("task-b")];
+  const submitted: string[] = [];
+  const sleeps: number[] = [];
+
+  const response = await executeLiMaCommand("/lima work --loop --max-tasks 2 --interval-ms 7 --backoff-ms 11", {
+    projectRoot: process.cwd(),
+    client: {
+      isConfigured: () => true,
+      fetchTask: async () => {
+        throw new Error("fetchTask should not be called");
+      },
+      fetchPendingTask: async () => ({ ok: true, value: tasks.shift() ?? null }),
+      submitResult: async (value: LiMaAgentTaskResult) => {
+        submitted.push(value.task_id);
+        return { ok: true, value: { accepted: true } };
+      },
+      fetchTaskEvents: async () => {
+        throw new Error("fetchTaskEvents should not be called");
+      },
+    },
+    runTask: async (task) => buildReviewResult(task.task_id),
+    appendAudit: () => undefined,
+    sleep: async (ms) => {
+      sleeps.push(ms);
+    },
+  });
+
+  assert.equal(response.ok, true);
+  assert.match(response.message, /processed 2 task/);
+  assert.deepEqual(submitted, ["task-a", "task-b"]);
+  assert.deepEqual(sleeps, [7]);
+});
+
+test("executeLiMaCommand work loop stops cleanly when no task is pending", async () => {
+  const response = await executeLiMaCommand("/lima work --loop --max-tasks 3 --interval-ms 1", {
+    projectRoot: process.cwd(),
+    client: {
+      isConfigured: () => true,
+      fetchTask: async () => {
+        throw new Error("fetchTask should not be called");
+      },
+      fetchPendingTask: async () => ({ ok: true, value: null }),
+      submitResult: async () => {
+        throw new Error("submitResult should not be called");
+      },
+      fetchTaskEvents: async () => {
+        throw new Error("fetchTaskEvents should not be called");
+      },
+    },
+    appendAudit: () => undefined,
+  });
+
+  assert.equal(response.ok, true);
+  assert.match(response.message, /No pending LiMa task/);
+});
+
+test("executeLiMaCommand work loop respects abort signal", async () => {
+  const controller = new AbortController();
+  controller.abort();
+
+  const response = await executeLiMaCommand("/lima work --loop --max-tasks 2 --interval-ms 1", {
+    projectRoot: process.cwd(),
+    signal: controller.signal,
+    client: {
+      isConfigured: () => true,
+      fetchTask: async () => {
+        throw new Error("fetchTask should not be called");
+      },
+      fetchPendingTask: async () => {
+        throw new Error("fetchPendingTask should not be called");
+      },
+      submitResult: async () => {
+        throw new Error("submitResult should not be called");
+      },
+      fetchTaskEvents: async () => {
+        throw new Error("fetchTaskEvents should not be called");
+      },
+    },
+    appendAudit: () => undefined,
+  });
+
+  assert.equal(response.ok, false);
+  assert.match(response.message, /aborted/);
+});
+
 test("executeLiMaCommand reports connect status without exposing the api key", async () => {
   const response = await executeLiMaCommand("/lima connect", {
     projectRoot: process.cwd(),
@@ -185,3 +271,31 @@ test("executeLiMaCommand fails safely for malformed lima commands", async () => 
   assert.equal(response.ok, false);
   assert.match(response.message, /task <task_id>/);
 });
+
+function buildReviewTask(taskId: string): LiMaAgentTaskRequest {
+  return {
+    task_id: taskId,
+    repo: process.cwd(),
+    branch: "main",
+    goal: "Run review",
+    constraints: [],
+    allowed_tools: ["git_diff"],
+    max_runtime_sec: 60,
+    mode: "review",
+  };
+}
+
+function buildReviewResult(taskId: string): LiMaAgentTaskResult {
+  return {
+    task_id: taskId,
+    status: "needs_review",
+    summary: "Task reviewed.",
+    changed_files: [],
+    test_commands: [],
+    test_results: [],
+    diff_preview: "",
+    artifacts: [],
+    risks: [],
+    next_action: "Submit result.",
+  };
+}
