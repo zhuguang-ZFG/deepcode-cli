@@ -3,11 +3,18 @@ import { z } from "zod";
 export const LIMA_AGENT_TASK_MODES = ["plan", "patch", "test", "review"] as const;
 export const LIMA_AGENT_TASK_STATUSES = [
   "accepted",
+  "claimed",
   "running",
+  "needs_review",
+  "approved",
+  "rejected",
+  "applied",
   "succeeded",
   "failed",
   "blocked",
-  "needs_review",
+  "cancel_requested",
+  "cancelled",
+  "quarantined",
 ] as const;
 
 export type LiMaAgentTaskMode = (typeof LIMA_AGENT_TASK_MODES)[number];
@@ -24,6 +31,10 @@ export type LiMaAgentTaskRequest = {
   allowed_tools: string[];
   max_runtime_sec: number;
   mode: LiMaAgentTaskMode;
+  worker_id?: string;
+  lease_expires_at?: number;
+  cancel_requested?: boolean;
+  failure_count?: number;
 };
 
 export type LiMaAgentTaskTestResult = {
@@ -56,6 +67,10 @@ const taskRequestSchema = z.object({
   allowed_tools: z.array(z.string().trim().min(1)),
   max_runtime_sec: z.number().int().positive(),
   mode: z.enum(LIMA_AGENT_TASK_MODES),
+  worker_id: z.string().optional(),
+  lease_expires_at: z.number().nonnegative().optional(),
+  cancel_requested: z.boolean().optional(),
+  failure_count: z.number().int().nonnegative().optional(),
 });
 
 const taskTestResultSchema = z.object({

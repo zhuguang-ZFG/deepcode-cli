@@ -59,11 +59,40 @@ test("validateLiMaAgentTaskRequest rejects missing configuration fields", () => 
   assert.match(result.ok ? "" : result.error, /repo/);
 });
 
+test("validateLiMaAgentTaskRequest accepts lifecycle metadata", () => {
+  const result = validateLiMaAgentTaskRequest({
+    ...validRequest,
+    worker_id: "worker-local",
+    lease_expires_at: 123,
+    cancel_requested: false,
+    failure_count: 0,
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.ok ? result.value.worker_id : "", "worker-local");
+});
+
 test("validateLiMaAgentTaskResult accepts the worker result contract", () => {
   const result = validateLiMaAgentTaskResult(validResult);
 
   assert.equal(result.ok, true);
   assert.equal(result.ok ? result.value.status : "", "succeeded");
+});
+
+test("validateLiMaAgentTaskResult accepts lifecycle statuses", () => {
+  for (const status of [
+    "claimed",
+    "running",
+    "approved",
+    "rejected",
+    "applied",
+    "cancel_requested",
+    "cancelled",
+    "quarantined",
+  ]) {
+    const result = validateLiMaAgentTaskResult({ ...validResult, status });
+    assert.equal(result.ok, true, status);
+  }
 });
 
 test("validateLiMaAgentTaskResult rejects invalid statuses with a typed error", () => {
