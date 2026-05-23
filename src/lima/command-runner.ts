@@ -2,6 +2,7 @@ import { LiMaAgentTaskClient } from "./agent-task-client";
 import type { LiMaAgentTaskClientResult } from "./agent-task-client";
 import type { LiMaAgentTaskRequest, LiMaAgentTaskResult } from "./agent-task-types";
 import { appendLiMaAuditEntry } from "./audit-log";
+import { formatAuditSummary, readRecentAuditEntries } from "./audit-reader";
 import { formatLiMaCommandHelp, parseLiMaCommand } from "./commands";
 import { recordTaskFailure, shouldQuarantineTask } from "./failure-quarantine";
 import { runLiMaAgentTask, type LiMaTaskRunnerConfig, type LiMaTaskRunnerRequest } from "./task-runner";
@@ -66,6 +67,13 @@ export async function executeLiMaCommand(
     const result = await runTask(task, { currentWorkspace: options.projectRoot });
     writeAudit(options.projectRoot, task, result);
     return formatTaskResult(result, false);
+  }
+
+  if (parsed.command.kind === "audit") {
+    return {
+      ok: true,
+      message: formatAuditSummary(readRecentAuditEntries(options.projectRoot, parsed.command.limit)),
+    };
   }
 
   if (parsed.command.kind === "daemon") {

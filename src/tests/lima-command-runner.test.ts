@@ -140,6 +140,29 @@ test("executeLiMaCommand reports when no pending task exists", async () => {
   assert.match(response.message, /No pending LiMa task/);
 });
 
+test("executeLiMaCommand shows recent audit entries", async () => {
+  const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), "lima-audit-command-"));
+  const dir = path.join(projectRoot, ".lima-code");
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(
+    path.join(dir, "audit.jsonl"),
+    [
+      JSON.stringify({ task_id: "old", status: "needs_review", mode: "review", timestamp: "2026-05-23T00:00:00.000Z" }),
+      JSON.stringify({ task_id: "new", status: "failed", mode: "patch", timestamp: "2026-05-23T00:01:00.000Z" }),
+    ].join("\n") + "\n",
+    "utf8"
+  );
+
+  const response = await executeLiMaCommand("/lima audit --last 1", {
+    projectRoot,
+    client: inertClient(),
+  });
+
+  assert.equal(response.ok, true);
+  assert.match(response.message, /new/);
+  assert.doesNotMatch(response.message, /old/);
+});
+
 test("executeLiMaCommand handles daemon stop and status", async () => {
   const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), "lima-daemon-control-"));
   const stop = await executeLiMaCommand("/lima daemon stop", {

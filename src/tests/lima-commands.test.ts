@@ -21,6 +21,17 @@ test("parseLiMaCommand parses next pending task", () => {
   assert.deepEqual(parseLiMaCommand("/lima next"), { ok: true, command: { kind: "next" } });
 });
 
+test("parseLiMaCommand parses audit command", () => {
+  assert.deepEqual(parseLiMaCommand("/lima audit"), {
+    ok: true,
+    command: { kind: "audit", limit: 10 },
+  });
+  assert.deepEqual(parseLiMaCommand("/lima audit --last 3"), {
+    ok: true,
+    command: { kind: "audit", limit: 3 },
+  });
+});
+
 test("parseLiMaCommand parses daemon lifecycle commands", () => {
   assert.deepEqual(parseLiMaCommand("/lima daemon status"), {
     ok: true,
