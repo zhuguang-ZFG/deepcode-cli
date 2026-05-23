@@ -41,6 +41,7 @@ import {
 import { buildExitSummaryText } from "./exitSummary";
 import { RawMode, useRawModeContext } from "./contexts";
 import { renderMessageToStdout } from "./components/MessageView/utils";
+import { executeLiMaCommand } from "../lima/command-runner";
 
 const DEFAULT_MODEL = "deepseek-v4-pro";
 const DEFAULT_BASE_URL = "https://api.deepseek.com";
@@ -251,6 +252,28 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
         setView("mcp-status");
         return;
       }
+      if (submission.command === "lima") {
+        setShowWelcome(false);
+        setBusy(true);
+        setErrorLine(null);
+        setMessages((prev) => [...prev, buildSyntheticUserMessage(submission.text, 0)]);
+        try {
+          const result = await executeLiMaCommand(submission.text, { projectRoot });
+          setMessages((prev) => [...prev, buildSyntheticAssistantMessage(result.message)]);
+          if (!result.ok) {
+            setErrorLine(result.message);
+          }
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          setErrorLine(message);
+          setMessages((prev) => [...prev, buildSyntheticAssistantMessage(message)]);
+        } finally {
+          setBusy(false);
+          setStreamProgress(null);
+          setRunningProcesses(null);
+        }
+        return;
+      }
 
       const prompt: UserPromptContent = {
         text: submission.text,
@@ -288,7 +311,7 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
         setRunningProcesses(null);
       }
     },
-    [exit, onRestart, sessionManager, refreshSkills, refreshSessionsList]
+    [exit, onRestart, projectRoot, sessionManager, refreshSkills, refreshSessionsList]
   );
 
   const handleInterrupt = useCallback(() => {
@@ -730,6 +753,22 @@ function buildSyntheticUserMessage(content: string, imageCount: number): Session
             image_url: { url: "" },
           }))
         : null,
+    messageParams: null,
+    compacted: false,
+    visible: true,
+    createTime: now,
+    updateTime: now,
+  };
+}
+
+function buildSyntheticAssistantMessage(content: string): SessionMessage {
+  const now = new Date().toISOString();
+  return {
+    id: `local-${Math.random().toString(36).slice(2)}`,
+    sessionId: "local",
+    role: "assistant",
+    content,
+    contentParams: null,
     messageParams: null,
     compacted: false,
     visible: true,

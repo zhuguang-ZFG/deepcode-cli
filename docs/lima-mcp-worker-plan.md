@@ -53,3 +53,30 @@ Add a LiMa-only HTTP MCP client that can call the preset endpoints without chang
 ## Later Phase
 
 Add a small HTTP MCP adapter once LiMa Server exposes stable tool list and tool call schemas. Then decide whether to plug it into `McpManager` directly or keep it as a LiMa-only worker channel.
+
+## Phase 8: LiMa Task Command Runner
+
+### Goal
+
+Make the LiMa worker path usable from the CLI, not only from isolated modules.
+
+### Decisions
+
+- `/lima task <task_id>` is handled locally by LiMa Code and is not sent to the model as a chat prompt.
+- LiMa Code fetches the task from LiMa Server, runs it through the guarded local task runner, writes a local audit entry, and submits the structured result back to LiMa Server.
+- `/lima review` remains local-only and uses the same guarded review path against the current git diff.
+- Local audit output is written under `.lima-code/audit.jsonl`; `.lima-code/` is ignored by Git because it may contain local settings or credentials.
+- Bash timeout handling waits for process close after killing the tree on Windows so temporary workspaces are not removed while still locked.
+
+### Evidence
+
+- Targeted LiMa tests: `41 passed`.
+- Tool handler regression tests: `22 passed`.
+- `npm.cmd run check`: passed.
+- Full LiMa Code test suite: `368 passed, 7 skipped`.
+- Public end-to-end smoke:
+  - LiMa Server created task `4d6c02b3`.
+  - LiMa Code executed `/lima task 4d6c02b3` against `https://chat.donglicao.com`.
+  - Worker ran read-only `review` mode over `D:\GIT\deepcode-cli`.
+  - Result submitted to Server as `needs_review`.
+  - Server event endpoint returned `created,result_submitted`.

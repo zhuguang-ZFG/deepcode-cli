@@ -68,7 +68,7 @@ export type PromptSubmission = {
   text: string;
   imageUrls: string[];
   selectedSkills?: SkillInfo[];
-  command?: "new" | "resume" | "continue" | "undo" | "mcp" | "exit";
+  command?: "new" | "resume" | "continue" | "undo" | "mcp" | "lima" | "exit";
 };
 
 export type PromptDraft = {
@@ -784,6 +784,12 @@ export const PromptInput = React.memo(function PromptInput({
       return;
     }
     if (item.kind === "lima") {
+      const trimmed = buffer.text.trim();
+      if (trimmed !== "/lima") {
+        onSubmit({ text: trimmed, imageUrls: [], command: "lima" });
+        resetPromptInput();
+        return;
+      }
       setBuffer({ text: "/lima ", cursor: "/lima ".length });
       setShowSkillsDropdown(false);
       return;

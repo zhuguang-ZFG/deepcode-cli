@@ -1,5 +1,6 @@
 node_modules/
 dist/
+.lima-code/
 .DS_Store
 .idea/
 .vscode/

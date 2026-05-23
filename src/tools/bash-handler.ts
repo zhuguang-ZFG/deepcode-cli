@@ -131,6 +131,7 @@ async function executeShellCommand(
     let timedOut = false;
     let settled = false;
     let timeoutTimer: ReturnType<typeof setTimeout> | null = null;
+    let killFallbackTimer: ReturnType<typeof setTimeout> | null = null;
     let stdout = "";
     let stderr = "";
     let error: string | undefined;
@@ -161,6 +162,10 @@ async function executeShellCommand(
       }
       settled = true;
       stopTimeoutTimer();
+      if (killFallbackTimer) {
+        clearTimeout(killFallbackTimer);
+        killFallbackTimer = null;
+      }
       if (typeof pid === "number") {
         context.onProcessTimeoutControl?.(pid, null);
         context.onProcessExit?.(pid);
@@ -185,7 +190,7 @@ async function executeShellCommand(
       killProcessTree(pid, "SIGKILL");
       child.stdout?.destroy();
       child.stderr?.destroy();
-      finish(null, "SIGKILL");
+      killFallbackTimer = setTimeout(() => finish(null, "SIGKILL"), 2000);
     };
     const scheduleTimeout = () => {
       stopTimeoutTimer();
@@ -216,7 +221,7 @@ async function executeShellCommand(
     }
 
     child.stdout?.on("data", (chunk: string | Buffer) => {
-      if (settled) {
+      if (settled || timedOut) {
         return;
       }
       stdout = appendChunk(stdout, chunk);
@@ -224,7 +229,7 @@ async function executeShellCommand(
       context.onProcessStdout?.(pid as number, text);
     });
     child.stderr?.on("data", (chunk: string | Buffer) => {
-      if (settled) {
+      if (settled || timedOut) {
         return;
       }
       stderr = appendChunk(stderr, chunk);
