@@ -95,6 +95,30 @@ test("test mode runs explicit test commands and captures evidence", async () => 
   assert.equal(result.test_results[0]?.exit_code, 0);
 });
 
+test("test mode de-duplicates explicit and constraint test commands", async () => {
+  const repo = createTempRepo();
+  const commands: string[] = [];
+
+  const result = await runLiMaAgentTask(
+    {
+      ...baseTask(repo, "test"),
+      constraints: ["test: npm.cmd run check"],
+      test_commands: ["npm.cmd run check"],
+    },
+    {
+      currentWorkspace: repo,
+      executeCommand: async (command) => {
+        commands.push(command);
+        return { exitCode: 0, stdout: "ok", stderr: "", durationMs: 12 };
+      },
+    }
+  );
+
+  assert.equal(result.status, "succeeded");
+  assert.deepEqual(commands, ["npm.cmd run check"]);
+  assert.deepEqual(result.test_commands, ["npm.cmd run check"]);
+});
+
 test("test mode fails on the first failing command", async () => {
   const repo = createTempRepo();
 

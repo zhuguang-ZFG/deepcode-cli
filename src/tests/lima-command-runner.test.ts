@@ -323,6 +323,10 @@ test("executeLiMaCommand runs local test stage with explicit command", async () 
       assert.equal(task.mode, "test");
       assert.deepEqual(task.allowed_tools, ["test"]);
       assert.deepEqual(task.test_commands, ["npm run check"]);
+      assert.equal(
+        task.constraints.some((constraint) => constraint.toLowerCase().startsWith("test:")),
+        false
+      );
       return {
         ...buildReviewResult("local-test"),
         status: "succeeded",

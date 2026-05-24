@@ -237,7 +237,7 @@ function extractTestCommands(task: LiMaTaskRunnerRequest): string[] {
     .filter((item) => item.toLowerCase().startsWith("test:"))
     .map((item) => item.slice("test:".length).trim())
     .filter(Boolean);
-  return [...explicit, ...fromConstraints];
+  return Array.from(new Set([...explicit, ...fromConstraints]));
 }
 
 async function runTestCommands(

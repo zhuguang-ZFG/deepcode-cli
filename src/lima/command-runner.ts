@@ -193,7 +193,7 @@ function buildLocalTestTask(projectRoot: string, command: string): LiMaTaskRunne
     repo: projectRoot,
     branch: "local",
     goal: "Run local verification command",
-    constraints: [`test: ${command}`],
+    constraints: [`Command: ${command}`],
     allowed_tools: ["test"],
     max_runtime_sec: 600,
     mode: "test",
