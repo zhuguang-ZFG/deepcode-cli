@@ -4,8 +4,12 @@ import type { LiMaAgentTaskRequest, LiMaAgentTaskResult } from "./agent-task-typ
 import { appendLiMaAuditEntry } from "./audit-log";
 import { formatAuditSummary, readRecentAuditEntries } from "./audit-reader";
 import { formatLiMaCommandHelp, parseLiMaCommand } from "./commands";
+import { formatLiMaDoctorReport, runLiMaDoctor } from "./doctor";
 import { recordTaskFailure, shouldQuarantineTask } from "./failure-quarantine";
+import { createLiMaFilesystemLifecycleHooks, type LiMaLifecycleHooks } from "./lifecycle-hooks";
+import { evaluateLiMaSkillActivationForProject } from "./skill-activation";
 import { runLiMaAgentTask, type LiMaTaskRunnerConfig, type LiMaTaskRunnerRequest } from "./task-runner";
+import { sendLiMaTelegramEvent, type LiMaTelegramEvent } from "./telegram-notifier";
 import { createWorkerBudget } from "./worker-budget";
 import { readWorkerStop, requestWorkerStop } from "./worker-control";
 
@@ -23,11 +27,15 @@ export type LiMaCommandRunnerResult = {
   message: string;
 };
 
+export type LiMaCommandRunnerNotifier = (event: LiMaTelegramEvent) => Promise<boolean>;
+
 export type LiMaCommandRunnerOptions = {
   projectRoot: string;
   client?: LiMaCommandRunnerClient;
   runTask?: (task: LiMaTaskRunnerRequest, config: LiMaTaskRunnerConfig) => Promise<LiMaAgentTaskResult>;
   appendAudit?: (projectRoot: string, task: LiMaAgentTaskRequest, result: LiMaAgentTaskResult) => void;
+  notify?: LiMaCommandRunnerNotifier;
+  lifecycleHooks?: LiMaLifecycleHooks | false;
   sleep?: (ms: number, signal?: AbortSignal) => Promise<void>;
   now?: () => number;
   signal?: AbortSignal;
@@ -45,6 +53,8 @@ export async function executeLiMaCommand(
   const client = options.client ?? new LiMaAgentTaskClient();
   const runTask = options.runTask ?? runLiMaAgentTask;
   const writeAudit = options.appendAudit ?? appendLiMaAuditEntry;
+  const notify = options.notify ?? sendLiMaTelegramEvent;
+  const lifecycleHooks = resolveLifecycleHooks(options);
 
   if (parsed.command.kind === "connect") {
     return client.isConfigured()
@@ -60,6 +70,11 @@ export async function executeLiMaCommand(
         `LiMa Server configured: ${client.isConfigured() ? "yes" : "no"}`,
       ].join("\n"),
     };
+  }
+
+  if (parsed.command.kind === "doctor") {
+    const report = await runLiMaDoctor({ projectRoot: options.projectRoot, client });
+    return { ok: report.ok, message: formatLiMaDoctorReport(report) };
   }
 
   if (parsed.command.kind === "review") {
@@ -96,7 +111,7 @@ export async function executeLiMaCommand(
     if (!fetched.value) {
       return { ok: true, message: "No pending LiMa task is available." };
     }
-    return runAndSubmitTask(fetched.value, options.projectRoot, client, runTask, writeAudit);
+    return runAndSubmitTask(fetched.value, options.projectRoot, client, runTask, writeAudit, notify, lifecycleHooks);
   }
 
   if (parsed.command.kind === "work") {
@@ -106,6 +121,8 @@ export async function executeLiMaCommand(
       client,
       runTask,
       writeAudit,
+      notify,
+      lifecycleHooks,
       sleep: options.sleep ?? sleep,
       now: options.now,
       signal: options.signal,
@@ -117,7 +134,7 @@ export async function executeLiMaCommand(
     return { ok: false, message: fetched.error };
   }
 
-  return runAndSubmitTask(fetched.value, options.projectRoot, client, runTask, writeAudit);
+  return runAndSubmitTask(fetched.value, options.projectRoot, client, runTask, writeAudit, notify, lifecycleHooks);
 }
 
 function buildLocalReviewTask(projectRoot: string): LiMaTaskRunnerRequest {
@@ -153,16 +170,28 @@ async function runAndSubmitTask(
   projectRoot: string,
   client: LiMaCommandRunnerClient,
   runTask: (task: LiMaTaskRunnerRequest, config: LiMaTaskRunnerConfig) => Promise<LiMaAgentTaskResult>,
-  writeAudit: (projectRoot: string, task: LiMaAgentTaskRequest, result: LiMaAgentTaskResult) => void
+  writeAudit: (projectRoot: string, task: LiMaAgentTaskRequest, result: LiMaAgentTaskResult) => void,
+  notify: LiMaCommandRunnerNotifier,
+  lifecycleHooks: LiMaLifecycleHooks | null
 ): Promise<LiMaCommandRunnerResult> {
+  await notifyBestEffort(notify, {
+    type: "task_started",
+    taskId: task.task_id,
+    status: "running",
+    summary: task.goal,
+  });
+  const activeSkills = evaluateLiMaSkillActivationForProject(task, projectRoot);
+  runLifecycleHookBestEffort(() => lifecycleHooks?.onTaskStart(task, activeSkills));
   const result = await runTask(task, { currentWorkspace: projectRoot });
   writeAudit(projectRoot, task, result);
+  runLifecycleHookBestEffort(() => lifecycleHooks?.onTaskStop(result));
 
   const submitted = await client.submitResult(result);
   if (!submitted.ok) {
     return { ok: false, message: `Task ${result.task_id} ran but result submission failed: ${submitted.error}` };
   }
 
+  await notifyBestEffort(notify, eventForTaskResult(result));
   return formatTaskResult(result, true);
 }
 
@@ -172,6 +201,8 @@ async function runWorkLoop(options: {
   client: LiMaCommandRunnerClient;
   runTask: (task: LiMaTaskRunnerRequest, config: LiMaTaskRunnerConfig) => Promise<LiMaAgentTaskResult>;
   writeAudit: (projectRoot: string, task: LiMaAgentTaskRequest, result: LiMaAgentTaskResult) => void;
+  notify: LiMaCommandRunnerNotifier;
+  lifecycleHooks: LiMaLifecycleHooks | null;
   sleep: (ms: number, signal?: AbortSignal) => Promise<void>;
   now?: () => number;
   signal?: AbortSignal;
@@ -187,15 +218,27 @@ async function runWorkLoop(options: {
   while (true) {
     const stop = readWorkerStop(options.projectRoot);
     if (stop.stop) {
+      await notifyBestEffort(options.notify, {
+        type: "work_stopped",
+        summary: `LiMa work stopped by marker: ${stop.reason}`,
+      });
       return { ok: true, message: `LiMa work stopped by marker: ${stop.reason}` };
     }
 
     if (options.signal?.aborted) {
+      await notifyBestEffort(options.notify, {
+        type: "work_stopped",
+        summary: `LiMa work aborted after ${processed} task(s).`,
+      });
       return { ok: false, message: `LiMa work aborted after ${processed} task(s).` };
     }
 
     const budgetDecision = budget.canStartNext();
     if (!budgetDecision.ok) {
+      await notifyBestEffort(options.notify, {
+        type: "work_stopped",
+        summary: budgetDecision.reason,
+      });
       return {
         ok: true,
         message: [`LiMa work processed ${processed} task(s).`, ...taskLines, budgetDecision.reason].join("\n"),
@@ -205,10 +248,18 @@ async function runWorkLoop(options: {
     const fetched = await options.client.fetchPendingTask();
     if (!fetched.ok) {
       await waitAfterFailure(options.command.backoffMs, options.sleep, options.signal);
+      await notifyBestEffort(options.notify, {
+        type: "work_stopped",
+        summary: `LiMa work stopped after fetch error: ${fetched.error}`,
+      });
       return { ok: false, message: `LiMa work stopped after fetch error: ${fetched.error}` };
     }
     if (!fetched.value) {
       const prefix = processed > 0 ? `LiMa work processed ${processed} task(s). ` : "";
+      await notifyBestEffort(options.notify, {
+        type: "work_stopped",
+        summary: `${prefix}No pending LiMa task is available.`,
+      });
       return { ok: true, message: `${prefix}No pending LiMa task is available.` };
     }
 
@@ -217,7 +268,9 @@ async function runWorkLoop(options: {
       options.projectRoot,
       options.client,
       options.runTask,
-      options.writeAudit
+      options.writeAudit,
+      options.notify,
+      options.lifecycleHooks
     );
     processed += 1;
     budget.recordTask();
@@ -226,6 +279,12 @@ async function runWorkLoop(options: {
       const failure = recordTaskFailure(options.projectRoot, fetched.value.task_id, result.message);
       const quarantine = shouldQuarantineTask(options.projectRoot, fetched.value.task_id, 3);
       if (quarantine.quarantine && options.client.quarantineTask) {
+        await notifyBestEffort(options.notify, {
+          type: "quarantine_requested",
+          taskId: fetched.value.task_id,
+          status: "quarantined",
+          summary: quarantine.reason,
+        });
         const quarantined = await options.client.quarantineTask(fetched.value.task_id);
         if (!quarantined.ok) {
           return {
@@ -264,6 +323,63 @@ async function runWorkLoop(options: {
 
 function firstLine(value: string): string {
   return value.split(/\r?\n/, 1)[0] ?? value;
+}
+
+function eventForTaskResult(result: LiMaAgentTaskResult): LiMaTelegramEvent {
+  if (result.status === "needs_review") {
+    return {
+      type: "task_needs_review",
+      taskId: result.task_id,
+      status: result.status,
+      summary: result.summary,
+      changedFiles: result.changed_files,
+    };
+  }
+  if (result.status === "failed" || result.status === "blocked") {
+    return {
+      type: "task_failed",
+      taskId: result.task_id,
+      status: result.status,
+      summary: result.summary,
+      changedFiles: result.changed_files,
+    };
+  }
+  return {
+    type: "task_finished",
+    taskId: result.task_id,
+    status: result.status,
+    summary: result.summary,
+    changedFiles: result.changed_files,
+  };
+}
+
+async function notifyBestEffort(notify: LiMaCommandRunnerNotifier, event: LiMaTelegramEvent): Promise<void> {
+  try {
+    await notify(event);
+  } catch {
+    // Notification failure must not change worker task semantics.
+  }
+}
+
+function resolveLifecycleHooks(options: LiMaCommandRunnerOptions): LiMaLifecycleHooks | null {
+  if (options.lifecycleHooks === false) {
+    return null;
+  }
+  if (options.lifecycleHooks) {
+    return options.lifecycleHooks;
+  }
+  if (options.client) {
+    return null;
+  }
+  return createLiMaFilesystemLifecycleHooks(options.projectRoot);
+}
+
+function runLifecycleHookBestEffort(callback: () => void): void {
+  try {
+    callback();
+  } catch {
+    // Lifecycle hook failure must not change worker task semantics.
+  }
 }
 
 async function waitAfterFailure(

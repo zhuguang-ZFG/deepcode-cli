@@ -1,6 +1,7 @@
 export type LiMaCommand =
   | { kind: "connect" }
   | { kind: "status" }
+  | { kind: "doctor" }
   | { kind: "next" }
   | { kind: "audit"; limit: number }
   | { kind: "daemon"; action: "status" | "stop" }
@@ -29,6 +30,9 @@ export function parseLiMaCommand(input: string): LiMaCommandParseResult {
   }
   if (subcommand === "status") {
     return { ok: true, command: { kind: "status" } };
+  }
+  if (subcommand === "doctor") {
+    return { ok: true, command: { kind: "doctor" } };
   }
   if (subcommand === "next") {
     return { ok: true, command: { kind: "next" } };
@@ -64,6 +68,7 @@ export function formatLiMaCommandHelp(): string {
   return [
     "/lima connect",
     "/lima status",
+    "/lima doctor",
     "/lima next",
     "/lima audit [--last <n>]",
     "/lima daemon status",
@@ -141,5 +146,5 @@ function readPositiveInt(
 }
 
 function usageText(): string {
-  return "Usage: /lima connect | /lima status | /lima next | /lima audit [--last <n>] | /lima daemon status | /lima daemon stop | /lima work --once | /lima work --loop --max-tasks <n> [--max-minutes <n>] | /lima task <task_id> | /lima review";
+  return "Usage: /lima connect | /lima status | /lima doctor | /lima next | /lima audit [--last <n>] | /lima daemon status | /lima daemon stop | /lima work --once | /lima work --loop --max-tasks <n> [--max-minutes <n>] | /lima task <task_id> | /lima review";
 }

@@ -10,6 +10,10 @@ test("parseLiMaCommand parses status", () => {
   assert.deepEqual(parseLiMaCommand("/lima status"), { ok: true, command: { kind: "status" } });
 });
 
+test("parseLiMaCommand parses doctor", () => {
+  assert.deepEqual(parseLiMaCommand("/lima doctor"), { ok: true, command: { kind: "doctor" } });
+});
+
 test("parseLiMaCommand parses task id", () => {
   assert.deepEqual(parseLiMaCommand("/lima task task-123"), {
     ok: true,
@@ -103,6 +107,7 @@ test("formatLiMaCommandHelp lists supported subcommands", () => {
   const help = formatLiMaCommandHelp();
 
   assert.match(help, /\/lima connect/);
+  assert.match(help, /\/lima doctor/);
   assert.match(help, /\/lima next/);
   assert.match(help, /\/lima work --once/);
   assert.match(help, /\/lima task <task_id>/);

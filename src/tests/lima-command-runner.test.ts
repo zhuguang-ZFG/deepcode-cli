@@ -66,6 +66,184 @@ test("executeLiMaCommand runs a server task and submits the result", async () =>
   assert.deepEqual(submitted, result);
 });
 
+test("executeLiMaCommand emits Telegram lifecycle events for review tasks", async () => {
+  const task: LiMaTaskRunnerRequest = {
+    task_id: "task-telegram",
+    repo: process.cwd(),
+    branch: "main",
+    goal: "Run review",
+    constraints: [],
+    allowed_tools: ["git_diff"],
+    max_runtime_sec: 60,
+    mode: "review",
+  };
+  const result: LiMaAgentTaskResult = {
+    task_id: "task-telegram",
+    status: "needs_review",
+    summary: "Review ready.",
+    changed_files: ["README.md"],
+    test_commands: [],
+    test_results: [],
+    diff_preview: "",
+    artifacts: [],
+    risks: [],
+    next_action: "Approve or reject.",
+  };
+  const events: string[] = [];
+
+  const response = await executeLiMaCommand("/lima task task-telegram", {
+    projectRoot: process.cwd(),
+    client: {
+      isConfigured: () => true,
+      fetchTask: async () => ({ ok: true, value: task }),
+      fetchPendingTask: async () => {
+        throw new Error("fetchPendingTask should not be called");
+      },
+      submitResult: async () => ({ ok: true, value: { accepted: true } }),
+      fetchTaskEvents: async () => {
+        throw new Error("fetchTaskEvents should not be called");
+      },
+    },
+    runTask: async () => result,
+    appendAudit: () => undefined,
+    notify: async (event) => {
+      events.push(`${event.type}:${event.taskId}:${event.status}`);
+      return true;
+    },
+  });
+
+  assert.equal(response.ok, true);
+  assert.deepEqual(events, ["task_started:task-telegram:running", "task_needs_review:task-telegram:needs_review"]);
+});
+
+test("executeLiMaCommand runs lifecycle hooks with active skill candidates", async () => {
+  const task: LiMaTaskRunnerRequest = {
+    task_id: "task-hooks",
+    repo: process.cwd(),
+    branch: "main",
+    goal: "Patch Telegram token handling",
+    constraints: ["test: npm test"],
+    allowed_tools: ["write", "test"],
+    max_runtime_sec: 60,
+    mode: "patch",
+    test_commands: ["npm test"],
+  };
+  const result: LiMaAgentTaskResult = {
+    task_id: "task-hooks",
+    status: "needs_review",
+    summary: "Patch ready.",
+    changed_files: ["src/lima/telegram-notifier.ts"],
+    test_commands: ["npm test"],
+    test_results: [{ command: "npm test", exit_code: 0 }],
+    diff_preview: "",
+    artifacts: [],
+    risks: [],
+    next_action: "Approve or reject.",
+  };
+  const events: string[] = [];
+
+  const response = await executeLiMaCommand("/lima task task-hooks", {
+    projectRoot: process.cwd(),
+    client: {
+      isConfigured: () => true,
+      fetchTask: async () => ({ ok: true, value: task }),
+      fetchPendingTask: async () => {
+        throw new Error("fetchPendingTask should not be called");
+      },
+      submitResult: async () => {
+        events.push("submit");
+        return { ok: true, value: { accepted: true } };
+      },
+      fetchTaskEvents: async () => {
+        throw new Error("fetchTaskEvents should not be called");
+      },
+    },
+    runTask: async () => {
+      events.push("run");
+      return result;
+    },
+    appendAudit: () => undefined,
+    lifecycleHooks: {
+      onTaskStart: (_task, activeSkills) => {
+        events.push(`start:${activeSkills.map((skill) => skill.name).join(",")}`);
+        return { ok: true, dir: process.cwd(), warnings: [] };
+      },
+      onTaskStop: (taskResult) => {
+        events.push(`stop:${taskResult.status}`);
+        return { ok: true, dir: process.cwd(), warnings: [] };
+      },
+    },
+  });
+
+  assert.equal(response.ok, true);
+  assert.deepEqual(events, [
+    "start:superpowers:test-driven-development,security-review",
+    "run",
+    "stop:needs_review",
+    "submit",
+  ]);
+});
+
+test("executeLiMaCommand includes project skill rules in lifecycle hooks", async () => {
+  const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), "lima-project-rule-runner-"));
+  fs.mkdirSync(path.join(projectRoot, ".lima-code"), { recursive: true });
+  fs.writeFileSync(
+    path.join(projectRoot, ".lima-code", "skill-rules.json"),
+    JSON.stringify({
+      rules: [
+        {
+          name: "lima-code:server-task-audit",
+          reason: "Server task route changes require audit review.",
+          keywords: ["agent", "audit"],
+          files: ["routes/*.py"],
+          modes: ["patch"],
+        },
+      ],
+    }),
+    "utf8"
+  );
+  const task: LiMaTaskRunnerRequest = {
+    task_id: "task-project-rules",
+    repo: projectRoot,
+    branch: "main",
+    goal: "Patch agent audit route",
+    constraints: [],
+    allowed_tools: ["write"],
+    max_runtime_sec: 60,
+    mode: "patch",
+    patch_files: [{ file_path: "routes/agent_tasks.py", content: "" }],
+  };
+  const result = buildReviewResult("task-project-rules");
+  const starts: string[][] = [];
+
+  const response = await executeLiMaCommand("/lima task task-project-rules", {
+    projectRoot,
+    client: {
+      isConfigured: () => true,
+      fetchTask: async () => ({ ok: true, value: task }),
+      fetchPendingTask: async () => {
+        throw new Error("fetchPendingTask should not be called");
+      },
+      submitResult: async () => ({ ok: true, value: { accepted: true } }),
+      fetchTaskEvents: async () => {
+        throw new Error("fetchTaskEvents should not be called");
+      },
+    },
+    runTask: async () => result,
+    appendAudit: () => undefined,
+    lifecycleHooks: {
+      onTaskStart: (_task, activeSkills) => {
+        starts.push(activeSkills.map((skill) => skill.name));
+        return { ok: true, dir: projectRoot, warnings: [] };
+      },
+      onTaskStop: () => ({ ok: true, dir: projectRoot, warnings: [] }),
+    },
+  });
+
+  assert.equal(response.ok, true);
+  assert.equal(starts[0]?.includes("lima-code:server-task-audit"), true);
+});
+
 test("executeLiMaCommand claims the next pending task and submits the result", async () => {
   const task: LiMaAgentTaskRequest = {
     task_id: "task-next",
@@ -435,6 +613,41 @@ test("executeLiMaCommand reports connect status without exposing the api key", a
   assert.equal(response.ok, true);
   assert.match(response.message, /configured/);
   assert.doesNotMatch(response.message, /secret-key/);
+});
+
+test("executeLiMaCommand runs doctor without executing tasks", async () => {
+  let pendingChecks = 0;
+
+  const response = await executeLiMaCommand("/lima doctor", {
+    projectRoot: fs.mkdtempSync(path.join(os.tmpdir(), "lima-doctor-runner-")),
+    client: {
+      isConfigured: () => true,
+      fetchTask: async () => {
+        throw new Error("fetchTask should not be called");
+      },
+      fetchPendingTask: async () => {
+        pendingChecks += 1;
+        return { ok: true, value: null };
+      },
+      submitResult: async () => {
+        throw new Error("submitResult should not be called");
+      },
+      fetchTaskEvents: async () => {
+        throw new Error("fetchTaskEvents should not be called");
+      },
+    },
+    runTask: async () => {
+      throw new Error("runTask should not be called");
+    },
+    appendAudit: () => {
+      throw new Error("appendAudit should not be called");
+    },
+  });
+
+  assert.equal(response.ok, true);
+  assert.equal(pendingChecks, 1);
+  assert.match(response.message, /LiMa doctor/);
+  assert.match(response.message, /server_reachable/);
 });
 
 test("executeLiMaCommand fails safely for malformed lima commands", async () => {
