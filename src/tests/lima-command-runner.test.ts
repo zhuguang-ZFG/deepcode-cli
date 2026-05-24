@@ -297,6 +297,68 @@ test("executeLiMaCommand claims the next pending task and submits the result", a
   assert.deepEqual(submitted, result);
 });
 
+test("executeLiMaCommand runs local plan stage without server submission", async () => {
+  const response = await executeLiMaCommand("/lima plan", {
+    projectRoot: process.cwd(),
+    client: inertClient(),
+    runTask: async (task) => {
+      assert.equal(task.task_id, "local-plan");
+      assert.equal(task.mode, "plan");
+      assert.match(task.goal, /Plan/);
+      return buildReviewResult("local-plan");
+    },
+    appendAudit: () => undefined,
+  });
+
+  assert.equal(response.ok, true);
+  assert.match(response.message, /local-plan/);
+});
+
+test("executeLiMaCommand runs local test stage with explicit command", async () => {
+  const response = await executeLiMaCommand("/lima test --cmd npm run check", {
+    projectRoot: process.cwd(),
+    client: inertClient(),
+    runTask: async (task) => {
+      assert.equal(task.task_id, "local-test");
+      assert.equal(task.mode, "test");
+      assert.deepEqual(task.allowed_tools, ["test"]);
+      assert.deepEqual(task.test_commands, ["npm run check"]);
+      return {
+        ...buildReviewResult("local-test"),
+        status: "succeeded",
+        summary: "All requested test commands passed.",
+      };
+    },
+    appendAudit: () => undefined,
+  });
+
+  assert.equal(response.ok, true);
+  assert.match(response.message, /local-test/);
+  assert.match(response.message, /succeeded/);
+});
+
+test("executeLiMaCommand runs local ship readiness stage without deploy or push", async () => {
+  const response = await executeLiMaCommand("/lima ship", {
+    projectRoot: process.cwd(),
+    client: inertClient(),
+    runTask: async (task) => {
+      assert.equal(task.task_id, "local-ship");
+      assert.equal(task.mode, "review");
+      assert.deepEqual(task.allowed_tools, ["git_diff"]);
+      assert.match(task.goal, /Ship readiness/);
+      assert.equal(
+        task.constraints.some((constraint) => /Do not deploy or push/i.test(constraint)),
+        true
+      );
+      return buildReviewResult("local-ship");
+    },
+    appendAudit: () => undefined,
+  });
+
+  assert.equal(response.ok, true);
+  assert.match(response.message, /local-ship/);
+});
+
 test("executeLiMaCommand reports when no pending task exists", async () => {
   const response = await executeLiMaCommand("/lima next", {
     projectRoot: process.cwd(),

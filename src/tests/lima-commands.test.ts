@@ -25,6 +25,19 @@ test("parseLiMaCommand parses next pending task", () => {
   assert.deepEqual(parseLiMaCommand("/lima next"), { ok: true, command: { kind: "next" } });
 });
 
+test("parseLiMaCommand parses local workflow stage commands", () => {
+  assert.deepEqual(parseLiMaCommand("/lima plan"), { ok: true, command: { kind: "plan" } });
+  assert.deepEqual(parseLiMaCommand("/lima ship"), { ok: true, command: { kind: "ship" } });
+  assert.deepEqual(parseLiMaCommand("/lima test"), {
+    ok: true,
+    command: { kind: "test", command: "npm test" },
+  });
+  assert.deepEqual(parseLiMaCommand("/lima test --cmd npm run test:single -- src/tests/lima.test.ts"), {
+    ok: true,
+    command: { kind: "test", command: "npm run test:single -- src/tests/lima.test.ts" },
+  });
+});
+
 test("parseLiMaCommand parses audit command", () => {
   assert.deepEqual(parseLiMaCommand("/lima audit"), {
     ok: true,
@@ -108,7 +121,10 @@ test("formatLiMaCommandHelp lists supported subcommands", () => {
 
   assert.match(help, /\/lima connect/);
   assert.match(help, /\/lima doctor/);
+  assert.match(help, /\/lima plan/);
+  assert.match(help, /\/lima test/);
   assert.match(help, /\/lima next/);
   assert.match(help, /\/lima work --once/);
+  assert.match(help, /\/lima ship/);
   assert.match(help, /\/lima task <task_id>/);
 });

@@ -77,8 +77,29 @@ export async function executeLiMaCommand(
     return { ok: report.ok, message: formatLiMaDoctorReport(report) };
   }
 
+  if (parsed.command.kind === "plan") {
+    const task = buildLocalPlanTask(options.projectRoot);
+    const result = await runTask(task, { currentWorkspace: options.projectRoot });
+    writeAudit(options.projectRoot, task, result);
+    return formatTaskResult(result, false);
+  }
+
+  if (parsed.command.kind === "test") {
+    const task = buildLocalTestTask(options.projectRoot, parsed.command.command);
+    const result = await runTask(task, { currentWorkspace: options.projectRoot });
+    writeAudit(options.projectRoot, task, result);
+    return formatTaskResult(result, false);
+  }
+
   if (parsed.command.kind === "review") {
     const task = buildLocalReviewTask(options.projectRoot);
+    const result = await runTask(task, { currentWorkspace: options.projectRoot });
+    writeAudit(options.projectRoot, task, result);
+    return formatTaskResult(result, false);
+  }
+
+  if (parsed.command.kind === "ship") {
+    const task = buildLocalShipTask(options.projectRoot);
     const result = await runTask(task, { currentWorkspace: options.projectRoot });
     writeAudit(options.projectRoot, task, result);
     return formatTaskResult(result, false);
@@ -144,6 +165,52 @@ function buildLocalReviewTask(projectRoot: string): LiMaTaskRunnerRequest {
     branch: "local",
     goal: "Review current git diff",
     constraints: [],
+    allowed_tools: ["git_diff"],
+    max_runtime_sec: 300,
+    mode: "review",
+  };
+}
+
+function buildLocalPlanTask(projectRoot: string): LiMaTaskRunnerRequest {
+  return {
+    task_id: "local-plan",
+    repo: projectRoot,
+    branch: "local",
+    goal: "Plan the next LiMa Code work slice",
+    constraints: [
+      "Keep the plan scoped to the current repository.",
+      "Prefer small, testable changes with explicit verification commands.",
+    ],
+    allowed_tools: ["git_diff"],
+    max_runtime_sec: 300,
+    mode: "plan",
+  };
+}
+
+function buildLocalTestTask(projectRoot: string, command: string): LiMaTaskRunnerRequest {
+  return {
+    task_id: "local-test",
+    repo: projectRoot,
+    branch: "local",
+    goal: "Run local verification command",
+    constraints: [`test: ${command}`],
+    allowed_tools: ["test"],
+    max_runtime_sec: 600,
+    mode: "test",
+    test_commands: [command],
+  };
+}
+
+function buildLocalShipTask(projectRoot: string): LiMaTaskRunnerRequest {
+  return {
+    task_id: "local-ship",
+    repo: projectRoot,
+    branch: "local",
+    goal: "Ship readiness review for current git diff",
+    constraints: [
+      "Confirm changed files, verification evidence, rollback notes, and residual risks.",
+      "Do not deploy or push from this local readiness check.",
+    ],
     allowed_tools: ["git_diff"],
     max_runtime_sec: 300,
     mode: "review",

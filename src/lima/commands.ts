@@ -3,6 +3,9 @@ export type LiMaCommand =
   | { kind: "status" }
   | { kind: "doctor" }
   | { kind: "next" }
+  | { kind: "plan" }
+  | { kind: "test"; command: string }
+  | { kind: "ship" }
   | { kind: "audit"; limit: number }
   | { kind: "daemon"; action: "status" | "stop" }
   | {
@@ -37,6 +40,15 @@ export function parseLiMaCommand(input: string): LiMaCommandParseResult {
   if (subcommand === "next") {
     return { ok: true, command: { kind: "next" } };
   }
+  if (subcommand === "plan") {
+    return { ok: true, command: { kind: "plan" } };
+  }
+  if (subcommand === "test") {
+    return { ok: true, command: { kind: "test", command: readRestCommand(parts.slice(2), "npm test") } };
+  }
+  if (subcommand === "ship") {
+    return { ok: true, command: { kind: "ship" } };
+  }
   if (subcommand === "audit") {
     const limit = readPositiveInt(parts.slice(2), "--last", 10);
     if (!limit.ok) {
@@ -69,6 +81,8 @@ export function formatLiMaCommandHelp(): string {
     "/lima connect",
     "/lima status",
     "/lima doctor",
+    "/lima plan",
+    "/lima test [--cmd <command>]",
     "/lima next",
     "/lima audit [--last <n>]",
     "/lima daemon status",
@@ -77,6 +91,7 @@ export function formatLiMaCommandHelp(): string {
     "/lima work --loop --max-tasks <n> [--max-minutes <n>] [--interval-ms <ms>] [--backoff-ms <ms>]",
     "/lima task <task_id>",
     "/lima review",
+    "/lima ship",
   ].join("\n");
 }
 
@@ -145,6 +160,18 @@ function readPositiveInt(
   return { ok: true, value };
 }
 
+function readRestCommand(args: string[], defaultValue: string): string {
+  const index = args.indexOf("--cmd");
+  if (index < 0) {
+    return defaultValue;
+  }
+  const command = args
+    .slice(index + 1)
+    .join(" ")
+    .trim();
+  return command || defaultValue;
+}
+
 function usageText(): string {
-  return "Usage: /lima connect | /lima status | /lima doctor | /lima next | /lima audit [--last <n>] | /lima daemon status | /lima daemon stop | /lima work --once | /lima work --loop --max-tasks <n> [--max-minutes <n>] | /lima task <task_id> | /lima review";
+  return "Usage: /lima connect | /lima status | /lima doctor | /lima plan | /lima test [--cmd <command>] | /lima next | /lima audit [--last <n>] | /lima daemon status | /lima daemon stop | /lima work --once | /lima work --loop --max-tasks <n> [--max-minutes <n>] | /lima task <task_id> | /lima review | /lima ship";
 }
