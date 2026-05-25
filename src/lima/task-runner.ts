@@ -7,6 +7,15 @@ import type {
   LiMaAgentTaskResult,
   LiMaAgentTaskTestResult,
 } from "./agent-task-types";
+import {
+  snapshotContext,
+  writePlanArtifacts,
+  writeReviewArtifacts,
+  writeShipArtifacts,
+  writeTestArtifacts,
+  type ArtifactBundle,
+  type ContextSnapshot,
+} from "./artifact-bundle";
 import { buildLiMaTaskResult, parseChangedFilesFromGitNameOnly, truncateText } from "./result-builder";
 import {
   assertLiMaTaskToolsAllowed,
@@ -31,6 +40,7 @@ export type LiMaCommandExecution = {
 
 export type LiMaTaskRunnerConfig = LiMaWorkspaceGuardConfig & {
   executeCommand?: (command: string, cwd: string, timeoutSec: number) => Promise<LiMaCommandExecution>;
+  projectRoot?: string;
 };
 
 export async function runLiMaAgentTask(
@@ -44,13 +54,15 @@ export async function runLiMaAgentTask(
 
   switch (task.mode) {
     case "plan":
-      return runPlanMode(task);
+      return runPlanMode(task, config.projectRoot ?? guard.value.repoRoot);
     case "patch":
       return runPatchMode(task, guard.value.repoRoot, guard.value.runtimeSec, config);
     case "test":
       return runTestMode(task, guard.value.repoRoot, guard.value.runtimeSec, config);
     case "review":
       return runReviewMode(task, guard.value.repoRoot, guard.value.runtimeSec, config);
+    case "ship":
+      return runShipMode(task, guard.value.repoRoot, guard.value.runtimeSec, config);
   }
 }
 
@@ -73,14 +85,47 @@ function prepareTask(
   return { ok: true, value: { repoRoot: repo.value, runtimeSec: runtime.value } };
 }
 
-function runPlanMode(task: LiMaTaskRunnerRequest): LiMaAgentTaskResult {
+function runPlanMode(task: LiMaTaskRunnerRequest, projectRoot: string): LiMaAgentTaskResult {
+  const context = snapshotContext(projectRoot);
+  const suggestedSlice = buildSuggestedSlice(task, context);
+
+  const bundle = writePlanArtifacts(projectRoot, {
+    task,
+    context,
+    suggestedSlice,
+  });
+
   return buildLiMaTaskResult(task, {
     status: "needs_review",
-    summary: [`Plan requested for: ${task.goal}`, ...task.constraints.map((item) => `- Constraint: ${item}`)].join(
-      "\n"
-    ),
-    nextAction: "Review the plan and rerun as patch/test/review when ready.",
+    summary: [
+      `Plan written for: ${task.goal}`,
+      `Context: ${context.changedFiles.length} changed file(s), ${context.recentFiles.length} recent file(s).`,
+      `Artifact bundle: ${bundle.dir}`,
+      `Files: ${bundle.files.join(", ")}`,
+    ].join("\n"),
+    changedFiles: context.changedFiles,
+    artifacts: bundle.files.map((f) => `${bundle.dir}/${f}`),
+    risks: context.existingRisks.slice(0, 5),
+    nextAction: "Review plan.md, context.json, and risks.md, then decide on patch/test/ship.",
   });
+}
+
+function buildSuggestedSlice(task: LiMaTaskRunnerRequest, context: ContextSnapshot): string {
+  const lines = [
+    `Based on current repository state:`,
+    `- Branch: ${context.branch}`,
+    `- Changed files: ${context.changedFiles.length > 0 ? context.changedFiles.join(", ") : "(clean working tree)"}`,
+    `- Task goal: ${task.goal}`,
+    ``,
+    `Suggested approach:`,
+    `1. Review the changed files and existing risks above.`,
+    `2. Identify the smallest change that moves toward the goal.`,
+    `3. Write a patch, run tests, and review with /lima ship.`,
+  ];
+  if (context.changedFiles.length === 0) {
+    lines.push(`4. Start with a focused edit to one file, then re-run /lima plan.`);
+  }
+  return lines.join("\n");
 }
 
 async function runPatchMode(
@@ -169,6 +214,11 @@ async function runTestMode(
   }
 
   const testRun = await runTestCommands(commands, repoRoot, runtimeSec, config);
+  writeTestArtifacts(config.projectRoot ?? repoRoot, {
+    task,
+    commands,
+    results: testRun.results,
+  });
   if (!testRun.ok) {
     return buildLiMaTaskResult(task, {
       status: "failed",
@@ -199,12 +249,72 @@ async function runReviewMode(
   }
 
   const diff = await runGitDiff(repoRoot, runtimeSec, config);
+  const findings = diff.preview ? ["Git diff detected changes for review."] : [];
+  writeReviewArtifacts(config.projectRoot ?? repoRoot, {
+    task,
+    diffPreview: diff.preview,
+    changedFiles: diff.changedFiles,
+    findings,
+  });
   return buildLiMaTaskResult(task, {
     status: "needs_review",
     summary: diff.preview ? "Review current diff for risks before patch submission." : "No git diff found to review.",
     changedFiles: diff.changedFiles,
     diffPreview: diff.preview,
     nextAction: diff.preview ? "Inspect findings and decide whether to patch." : "No action required.",
+  });
+}
+
+async function runShipMode(
+  task: LiMaTaskRunnerRequest,
+  repoRoot: string,
+  runtimeSec: number,
+  config: LiMaTaskRunnerConfig
+): Promise<LiMaAgentTaskResult> {
+  if (!task.allowed_tools.includes("git_diff")) {
+    return blockedResult(task, "Ship mode requires the git_diff tool.");
+  }
+
+  const projectRoot = config.projectRoot ?? repoRoot;
+  const context = snapshotContext(projectRoot);
+  const diff = await runGitDiff(repoRoot, runtimeSec, config);
+
+  const remainingRisks = [
+    ...context.existingRisks.slice(0, 5),
+    ...(diff.changedFiles.length > 3 ? [`Large change: ${diff.changedFiles.length} files modified.`] : []),
+    ...(diff.changedFiles.length === 0 ? ["No changes to ship."] : []),
+  ];
+
+  const rollbackNotes =
+    context.changedFiles.length > 0
+      ? `To rollback: git checkout ${context.changedFiles.map((f) => `'${f}'`).join(" ")}`
+      : "No changes to rollback.";
+
+  const commitSummary = context.changedFiles.length > 0 ? `feat: ${task.goal.slice(0, 60)}` : "";
+
+  const bundle = writeShipArtifacts(projectRoot, {
+    task,
+    diffPreview: diff.preview,
+    changedFiles: diff.changedFiles,
+    remainingRisks,
+    rollbackNotes,
+    commitSummary,
+  });
+
+  return buildLiMaTaskResult(task, {
+    status: "needs_review",
+    summary: [
+      `Ship review written for: ${task.goal}`,
+      `Changed files: ${diff.changedFiles.length}.`,
+      `Remaining risks: ${remainingRisks.length}.`,
+      `Artifact bundle: ${bundle.dir}`,
+      `Files: ${bundle.files.join(", ")}`,
+    ].join("\n"),
+    changedFiles: diff.changedFiles,
+    diffPreview: diff.preview,
+    artifacts: bundle.files.map((f) => `${bundle.dir}/${f}`),
+    risks: remainingRisks,
+    nextAction: "Review ship.md, diff.patch, and risks before committing. Do NOT deploy or push from this check.",
   });
 }
 

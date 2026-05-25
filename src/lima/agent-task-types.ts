@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const LIMA_AGENT_TASK_MODES = ["plan", "patch", "test", "review"] as const;
+export const LIMA_AGENT_TASK_MODES = ["plan", "patch", "test", "review", "ship"] as const;
 export const LIMA_AGENT_TASK_STATUSES = [
   "accepted",
   "claimed",

@@ -79,28 +79,28 @@ export async function executeLiMaCommand(
 
   if (parsed.command.kind === "plan") {
     const task = buildLocalPlanTask(options.projectRoot);
-    const result = await runTask(task, { currentWorkspace: options.projectRoot });
+    const result = await runTask(task, { currentWorkspace: options.projectRoot, projectRoot: options.projectRoot });
     writeAudit(options.projectRoot, task, result);
     return formatTaskResult(result, false);
   }
 
   if (parsed.command.kind === "test") {
     const task = buildLocalTestTask(options.projectRoot, parsed.command.command);
-    const result = await runTask(task, { currentWorkspace: options.projectRoot });
+    const result = await runTask(task, { currentWorkspace: options.projectRoot, projectRoot: options.projectRoot });
     writeAudit(options.projectRoot, task, result);
     return formatTaskResult(result, false);
   }
 
   if (parsed.command.kind === "review") {
     const task = buildLocalReviewTask(options.projectRoot);
-    const result = await runTask(task, { currentWorkspace: options.projectRoot });
+    const result = await runTask(task, { currentWorkspace: options.projectRoot, projectRoot: options.projectRoot });
     writeAudit(options.projectRoot, task, result);
     return formatTaskResult(result, false);
   }
 
   if (parsed.command.kind === "ship") {
     const task = buildLocalShipTask(options.projectRoot);
-    const result = await runTask(task, { currentWorkspace: options.projectRoot });
+    const result = await runTask(task, { currentWorkspace: options.projectRoot, projectRoot: options.projectRoot });
     writeAudit(options.projectRoot, task, result);
     return formatTaskResult(result, false);
   }
@@ -213,7 +213,7 @@ function buildLocalShipTask(projectRoot: string): LiMaTaskRunnerRequest {
     ],
     allowed_tools: ["git_diff"],
     max_runtime_sec: 300,
-    mode: "review",
+    mode: "ship",
   };
 }
 
@@ -249,7 +249,7 @@ async function runAndSubmitTask(
   });
   const activeSkills = evaluateLiMaSkillActivationForProject(task, projectRoot);
   runLifecycleHookBestEffort(() => lifecycleHooks?.onTaskStart(task, activeSkills));
-  const result = await runTask(task, { currentWorkspace: projectRoot });
+  const result = await runTask(task, { currentWorkspace: projectRoot, projectRoot });
   writeAudit(projectRoot, task, result);
   runLifecycleHookBestEffort(() => lifecycleHooks?.onTaskStop(result));
 

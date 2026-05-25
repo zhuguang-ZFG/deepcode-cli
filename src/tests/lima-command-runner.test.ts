@@ -347,7 +347,7 @@ test("executeLiMaCommand runs local ship readiness stage without deploy or push"
     client: inertClient(),
     runTask: async (task) => {
       assert.equal(task.task_id, "local-ship");
-      assert.equal(task.mode, "review");
+      assert.equal(task.mode, "ship");
       assert.deepEqual(task.allowed_tools, ["git_diff"]);
       assert.match(task.goal, /Ship readiness/);
       assert.equal(

@@ -18,18 +18,20 @@ function baseTask(repo: string, mode: LiMaTaskRunnerRequest["mode"]): LiMaTaskRu
   };
 }
 
-test("plan mode returns a read-only review result", async () => {
+test("plan mode returns a read-only review result with artifacts", async () => {
   const repo = createTempRepo();
   const before = fs.readdirSync(repo);
 
   const result = await runLiMaAgentTask(
     { ...baseTask(repo, "plan"), constraints: ["Do not commit"] },
-    { currentWorkspace: repo }
+    { currentWorkspace: repo, projectRoot: repo }
   );
 
   assert.equal(result.status, "needs_review");
   assert.deepEqual(result.changed_files, []);
-  assert.deepEqual(fs.readdirSync(repo), before);
+  assert.ok(result.artifacts.length > 0, "plan mode should produce artifacts");
+  const after = fs.readdirSync(repo).filter((n) => n !== ".lima");
+  assert.deepEqual(after, before);
 });
 
 test("patch mode writes explicit patch files inside the guarded repo", async () => {
