@@ -91,6 +91,10 @@ export async function executeLiMaCommand(
     return formatTaskResult(result, false);
   }
 
+  if (parsed.command.kind === "fix") {
+    return runFixWorkflow(options.projectRoot, client, runTask, writeAudit, notify, lifecycleHooks);
+  }
+
   if (parsed.command.kind === "review") {
     const task = buildLocalReviewTask(options.projectRoot);
     const result = await runTask(task, { currentWorkspace: options.projectRoot, projectRoot: options.projectRoot });
@@ -477,6 +481,80 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
       { once: true }
     );
   });
+}
+
+async function runFixWorkflow(
+  projectRoot: string,
+  client: LiMaCommandRunnerClient,
+  runTask: (task: LiMaTaskRunnerRequest, config: LiMaTaskRunnerConfig) => Promise<LiMaAgentTaskResult>,
+  writeAudit: (projectRoot: string, task: LiMaAgentTaskRequest, result: LiMaAgentTaskResult) => void,
+  notify: LiMaCommandRunnerNotifier,
+  lifecycleHooks: LiMaLifecycleHooks | null
+): Promise<LiMaCommandRunnerResult> {
+  // Step 1: Claim a pending task
+  const fetched = await client.fetchPendingTask();
+  if (!fetched.ok) {
+    return { ok: false, message: `Failed to fetch task: ${fetched.error}` };
+  }
+  if (!fetched.value) {
+    return { ok: true, message: "No pending LiMa task is available." };
+  }
+
+  const task = fetched.value;
+  await notifyBestEffort(notify, {
+    type: "task_started",
+    taskId: task.task_id,
+    status: "running",
+    summary: task.goal,
+  });
+
+  const activeSkills = evaluateLiMaSkillActivationForProject(task, projectRoot);
+  runLifecycleHookBestEffort(() => lifecycleHooks?.onTaskStart(task, activeSkills));
+
+  // Step 2: Generate context and plan artifact
+  const planResult = await runTask(
+    { ...(task as LiMaTaskRunnerRequest), mode: "plan" },
+    { currentWorkspace: projectRoot, projectRoot }
+  );
+
+  // Step 3: Run tests if specified
+  let testResult: LiMaAgentTaskResult | null = null;
+  const testCommands = task.test_commands ?? [];
+  if (testCommands.length > 0) {
+    testResult = await runTask(
+      {
+        ...(task as LiMaTaskRunnerRequest),
+        mode: "test",
+        test_commands: testCommands,
+        allowed_tools: [...task.allowed_tools, "test"],
+      },
+      { currentWorkspace: projectRoot, projectRoot }
+    );
+  }
+
+  const lines = [
+    `LiMa fix workflow prepared for task ${task.task_id}: ${task.goal}`,
+    `Artifact bundle: .lima/artifacts/${task.task_id}/`,
+    testResult
+      ? `Tests run: ${testResult.status === "succeeded" ? "ALL PASSED" : "FAILURES FOUND"}`
+      : "No test commands specified.",
+    planResult.artifacts.length > 0 ? `Plan files: ${planResult.artifacts.join(", ")}` : "Plan artifact written.",
+    "",
+    "Next steps:",
+    "1. Review plan.md and context.json",
+    "2. Fix the failing tests or implement the task",
+    testCommands.length > 0 ? `3. Verify: /lima test --cmd "${testCommands[0]}"` : "",
+    testCommands.length > 1 ? `   ...repeat for: ${testCommands.slice(1).join(", ")}` : "",
+    `4. Ship when ready: /lima ship (this submits the result)`,
+    testResult && testResult.status !== "succeeded"
+      ? "\nHint: Check tests.json in the artifact directory to see what failed."
+      : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  writeAudit(projectRoot, task, planResult);
+  return { ok: true, message: lines };
 }
 
 export function formatLiMaCommandRunnerHelp(): string {

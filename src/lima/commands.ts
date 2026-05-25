@@ -5,6 +5,7 @@ export type LiMaCommand =
   | { kind: "next" }
   | { kind: "plan" }
   | { kind: "test"; command: string }
+  | { kind: "fix" }
   | { kind: "ship" }
   | { kind: "audit"; limit: number }
   | { kind: "daemon"; action: "status" | "stop" }
@@ -46,6 +47,9 @@ export function parseLiMaCommand(input: string): LiMaCommandParseResult {
   if (subcommand === "test") {
     return { ok: true, command: { kind: "test", command: readRestCommand(parts.slice(2), "npm test") } };
   }
+  if (subcommand === "fix") {
+    return { ok: true, command: { kind: "fix" } };
+  }
   if (subcommand === "ship") {
     return { ok: true, command: { kind: "ship" } };
   }
@@ -83,6 +87,7 @@ export function formatLiMaCommandHelp(): string {
     "/lima doctor",
     "/lima plan",
     "/lima test [--cmd <command>]",
+    "/lima fix",
     "/lima next",
     "/lima audit [--last <n>]",
     "/lima daemon status",
