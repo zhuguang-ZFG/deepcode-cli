@@ -6,3 +6,9 @@ dist/
 .vscode/
 *.tgz
 *.log
+
+# Local LiMa Code runtime (never commit)
+data/
+data/*.db
+data/*.db-shm
+data/*.db-wal
