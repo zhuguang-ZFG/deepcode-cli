@@ -3,6 +3,8 @@ export type LiMaTelegramConfig = {
   botToken: string;
   chatId: string;
   proxyUrl: string;
+  b2bEnabled: boolean;
+  serverBotUsername: string;
 };
 
 export type LiMaTelegramEventType =
@@ -38,11 +40,17 @@ export function readLiMaTelegramConfig(env: NodeJS.ProcessEnv = process.env): Li
   const botToken = (env.LIMA_CODE_TELEGRAM_BOT_TOKEN ?? "").trim();
   const chatId = (env.LIMA_CODE_TELEGRAM_CHAT_ID ?? "").trim();
   const proxyUrl = (env.LIMA_CODE_TELEGRAM_PROXY ?? "").trim();
+  const b2bRaw = (env.LIMA_CODE_TELEGRAM_B2B ?? "").trim().toLowerCase();
+  const serverBotUsername = (env.LIMA_SERVER_BOT_USERNAME ?? "").trim().replace(/^@/, "");
+  const b2bEnabled = b2bRaw === "1" || b2bRaw === "true" || b2bRaw === "yes" || b2bRaw === "on";
+  const configured = Boolean(botToken && (chatId || (b2bEnabled && serverBotUsername)));
   return {
-    configured: Boolean(botToken && chatId),
+    configured,
     botToken,
     chatId,
     proxyUrl,
+    b2bEnabled,
+    serverBotUsername,
   };
 }
 
@@ -69,6 +77,30 @@ export function formatLiMaTelegramEvent(event: LiMaTelegramEvent): string {
   return redactTelegramText(lines.join("\n"));
 }
 
+const B2B_PREFIX = "LIMA_B2B\n";
+
+export function formatLiMaB2BPayload(event: LiMaTelegramEvent): string {
+  const payload = {
+    v: 1,
+    type: event.type,
+    task_id: event.taskId ?? "",
+    status: event.status ?? "",
+    summary: redactTelegramText(event.summary),
+    changed_files: event.changedFiles?.slice(0, 20) ?? [],
+  };
+  return B2B_PREFIX + JSON.stringify(payload);
+}
+
+function resolveTelegramTarget(config: LiMaTelegramConfig, event: LiMaTelegramEvent): { chatId: string; text: string } {
+  if (config.b2bEnabled && config.serverBotUsername) {
+    return {
+      chatId: `@${config.serverBotUsername}`,
+      text: formatLiMaB2BPayload(event),
+    };
+  }
+  return { chatId: config.chatId, text: formatLiMaTelegramEvent(event) };
+}
+
 export async function sendLiMaTelegramEvent(
   event: LiMaTelegramEvent,
   options: LiMaTelegramSendOptions = {}
@@ -78,13 +110,14 @@ export async function sendLiMaTelegramEvent(
     return false;
   }
 
+  const target = resolveTelegramTarget(config, event);
   const fetchImpl = options.fetch ?? fetch;
   const init: RequestInit = {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      chat_id: config.chatId,
-      text: formatLiMaTelegramEvent(event),
+      chat_id: target.chatId,
+      text: target.text,
     }),
   };
   if (config.proxyUrl && !options.fetch) {
