@@ -1,6 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import type { LiMaAgentTaskRequest, LiMaAgentTaskResult } from "./agent-task-types";
+import { renderPromptContract, resolveTaskPromptContract } from "./prompt-contract";
 import type { LiMaActiveSkill } from "./skill-activation";
 
 export type LiMaLifecycleHookResult =
@@ -68,13 +69,9 @@ function formatTaskContext(task: LiMaAgentTaskRequest, activeSkills: LiMaActiveS
     `- Branch: ${task.branch}`,
     `- Max runtime: ${task.max_runtime_sec}s`,
     "",
-    "## Goal",
+    "## Prompt Contract",
     "",
-    task.goal,
-    "",
-    "## Constraints",
-    "",
-    ...listOrNone(task.constraints),
+    renderPromptContract(resolveTaskPromptContract(task)),
     "",
     "## Allowed Tools",
     "",

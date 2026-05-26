@@ -27,6 +27,14 @@ export type LiMaAgentTaskPatchFile = {
   content: string;
 };
 
+export type LiMaPromptContract = {
+  context: string;
+  task: string;
+  constraints: string[];
+  verify: string[];
+  output: string;
+};
+
 export type LiMaAgentTaskRequest = {
   task_id: string;
   repo: string;
@@ -42,6 +50,7 @@ export type LiMaAgentTaskRequest = {
   failure_count?: number;
   patch_files?: LiMaAgentTaskPatchFile[];
   test_commands?: string[];
+  prompt_contract?: LiMaPromptContract;
 };
 
 export type LiMaAgentTaskTestResult = {
@@ -87,6 +96,15 @@ const taskRequestSchema = z.object({
     )
     .optional(),
   test_commands: z.array(z.string().trim().min(1)).optional(),
+  prompt_contract: z
+    .object({
+      context: z.string(),
+      task: z.string(),
+      constraints: z.array(z.string()),
+      verify: z.array(z.string()),
+      output: z.string(),
+    })
+    .optional(),
 });
 
 const taskTestResultSchema = z.object({

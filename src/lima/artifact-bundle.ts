@@ -15,6 +15,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { execSync } from "child_process";
 import type { LiMaAgentTaskRequest, LiMaAgentTaskResult, LiMaAgentTaskTestResult } from "./agent-task-types";
+import { renderPromptContract, resolveTaskPromptContract } from "./prompt-contract";
 
 const ARTIFACTS_DIR = ".lima/artifacts";
 
@@ -76,6 +77,8 @@ export function writePlanArtifacts(projectRoot: string, options: WritePlanOption
   const dir = ensureArtifactDir(projectRoot, options.task.task_id);
   const files: string[] = [];
 
+  const contractBlock = renderPromptContract(resolveTaskPromptContract(options.task));
+
   // plan.md
   const planLines = [
     `# Plan: ${options.task.goal}`,
@@ -83,13 +86,10 @@ export function writePlanArtifacts(projectRoot: string, options: WritePlanOption
     `> branch: ${options.task.branch}`,
     `> repo: ${options.task.repo}`,
     ``,
-    `## Goal`,
-    options.task.goal,
+    `## Prompt Contract`,
+    contractBlock,
     ``,
-    `## Constraints`,
-    ...options.task.constraints.map((c) => `- ${c}`),
-    ``,
-    `## Context`,
+    `## Repository Context`,
     `- Changed files (${options.context.changedFiles.length}): ${options.context.changedFiles.join(", ") || "(none)"}`,
     `- Recent files (${options.context.recentFiles.length}): ${options.context.recentFiles.join(", ") || "(none)"}`,
     ``,
@@ -108,6 +108,7 @@ export function writePlanArtifacts(projectRoot: string, options: WritePlanOption
     repo: options.task.repo,
     goal: options.task.goal,
     constraints: options.task.constraints,
+    prompt_contract: resolveTaskPromptContract(options.task),
     changed_files: options.context.changedFiles,
     recent_files: options.context.recentFiles,
     git_status: options.context.gitStatus,
