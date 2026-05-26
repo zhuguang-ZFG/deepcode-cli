@@ -67,6 +67,23 @@ $env:LIMA_CODE_API_KEY = "<YOUR_LIMA_API_KEY>"
 
 LiMa agent task 必须在 `allowed_tools` 中显式包含 `mcp`，才允许调用 `mcp__...` 工具。
 
+### codesearch MCP（PE-B-1，本地离线语义搜索）
+
+安装与索引见 `docs/CODESEARCH_MCP_SETUP.md`。配置示例：
+
+```json
+{
+  "mcpServers": {
+    "codesearch": {
+      "command": "codesearch",
+      "args": ["mcp", "--mode", "local"]
+    }
+  }
+}
+```
+
+多仓模式先 `codesearch serve`，再使用 `"args": ["mcp", "--mode", "client"]`。
+
 ### GitHub MCP
 
 让 LiMa Code 直接操作 GitHub 仓库（搜索代码、管理 Issue/PR、读写文件等）：
