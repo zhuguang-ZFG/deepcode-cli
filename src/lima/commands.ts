@@ -10,6 +10,13 @@ export type LiMaCommand =
   | { kind: "audit"; limit: number }
   | { kind: "daemon"; action: "status" | "stop" }
   | {
+      kind: "daemon";
+      action: "start";
+      maxMinutes: number;
+      intervalMs: number;
+      backoffMs: number;
+    }
+  | {
       kind: "work";
       mode: "once" | "loop";
       maxTasks: number;
@@ -92,6 +99,7 @@ export function formatLiMaCommandHelp(): string {
     "/lima audit [--last <n>]",
     "/lima daemon status",
     "/lima daemon stop",
+    "/lima daemon start [--max-minutes <n>] [--interval-ms <ms>] [--backoff-ms <ms>]  (requires LIMA_CODE_WORKER_DAEMON=1)",
     "/lima work --once",
     "/lima work --loop --max-tasks <n> [--max-minutes <n>] [--interval-ms <ms>] [--backoff-ms <ms>]",
     "/lima task <task_id>",
@@ -105,7 +113,31 @@ function parseDaemonCommand(args: string[]): LiMaCommandParseResult {
   if (action === "status" || action === "stop") {
     return { ok: true, command: { kind: "daemon", action } };
   }
-  return { ok: false, error: "Usage: /lima daemon status | /lima daemon stop" };
+  if (action === "start") {
+    const maxMinutes = readPositiveInt(args, "--max-minutes", 480);
+    if (!maxMinutes.ok) {
+      return maxMinutes;
+    }
+    const intervalMs = readPositiveInt(args, "--interval-ms", 15000);
+    if (!intervalMs.ok) {
+      return intervalMs;
+    }
+    const backoffMs = readPositiveInt(args, "--backoff-ms", 30000);
+    if (!backoffMs.ok) {
+      return backoffMs;
+    }
+    return {
+      ok: true,
+      command: {
+        kind: "daemon",
+        action: "start",
+        maxMinutes: maxMinutes.value,
+        intervalMs: intervalMs.value,
+        backoffMs: backoffMs.value,
+      },
+    };
+  }
+  return { ok: false, error: "Usage: /lima daemon status | stop | start [--max-minutes <n>]" };
 }
 
 function parseWorkCommand(args: string[]): LiMaCommandParseResult {

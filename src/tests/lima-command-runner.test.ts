@@ -426,6 +426,88 @@ test("executeLiMaCommand handles daemon stop and status", async () => {
   assert.match(status.message, /stop pending/);
 });
 
+test("executeLiMaCommand rejects daemon start when env gate is off", async () => {
+  const previous = process.env.LIMA_CODE_WORKER_DAEMON;
+  delete process.env.LIMA_CODE_WORKER_DAEMON;
+  try {
+    const response = await executeLiMaCommand("/lima daemon start --max-minutes 1 --interval-ms 1", {
+      projectRoot: process.cwd(),
+      client: inertClient(),
+    });
+    assert.equal(response.ok, false);
+    assert.match(response.message, /LIMA_CODE_WORKER_DAEMON=1/);
+  } finally {
+    if (previous === undefined) {
+      delete process.env.LIMA_CODE_WORKER_DAEMON;
+    } else {
+      process.env.LIMA_CODE_WORKER_DAEMON = previous;
+    }
+  }
+});
+
+test("executeLiMaCommand daemon start idle-retries until a task appears", async () => {
+  const previous = process.env.LIMA_CODE_WORKER_DAEMON;
+  process.env.LIMA_CODE_WORKER_DAEMON = "1";
+  let polls = 0;
+  let clock = 0;
+  const task: LiMaTaskRunnerRequest = {
+    task_id: "daemon-task",
+    repo: process.cwd(),
+    branch: "main",
+    goal: "Daemon smoke",
+    constraints: [],
+    allowed_tools: ["git_diff"],
+    max_runtime_sec: 60,
+    mode: "review",
+  };
+  const result: LiMaAgentTaskResult = {
+    task_id: "daemon-task",
+    status: "needs_review",
+    summary: "Daemon ok",
+    changed_files: [],
+    test_commands: [],
+    test_results: [],
+    diff_preview: "",
+    artifacts: [],
+    risks: [],
+    next_action: "approve",
+  };
+  try {
+    const response = await executeLiMaCommand("/lima daemon start --max-minutes 1 --interval-ms 1 --backoff-ms 1", {
+      projectRoot: process.cwd(),
+      client: {
+        ...inertClient(),
+        fetchPendingTask: async () => {
+          polls += 1;
+          if (polls < 2) {
+            return { ok: true, value: null };
+          }
+          if (polls === 2) {
+            return { ok: true, value: task };
+          }
+          return { ok: true, value: null };
+        },
+        submitResult: async () => ({ ok: true, value: { accepted: true } }),
+      },
+      runTask: async () => result,
+      appendAudit: () => undefined,
+      sleep: async () => {
+        clock += polls >= 2 ? 61_000 : 1;
+      },
+      now: () => clock,
+    });
+    assert.equal(response.ok, true);
+    assert.match(response.message, /daemon-task/);
+    assert.ok(polls >= 2);
+  } finally {
+    if (previous === undefined) {
+      delete process.env.LIMA_CODE_WORKER_DAEMON;
+    } else {
+      process.env.LIMA_CODE_WORKER_DAEMON = previous;
+    }
+  }
+});
+
 test("executeLiMaCommand work loop stops when marker is present", async () => {
   const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), "lima-daemon-stop-"));
   await executeLiMaCommand("/lima daemon stop", {

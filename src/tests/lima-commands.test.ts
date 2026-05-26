@@ -58,6 +58,16 @@ test("parseLiMaCommand parses daemon lifecycle commands", () => {
     ok: true,
     command: { kind: "daemon", action: "stop" },
   });
+  assert.deepEqual(parseLiMaCommand("/lima daemon start --max-minutes 3 --interval-ms 10 --backoff-ms 20"), {
+    ok: true,
+    command: {
+      kind: "daemon",
+      action: "start",
+      maxMinutes: 3,
+      intervalMs: 10,
+      backoffMs: 20,
+    },
+  });
 });
 
 test("parseLiMaCommand parses work once", () => {

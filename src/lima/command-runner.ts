@@ -121,6 +121,34 @@ export async function executeLiMaCommand(
       const marker = requestWorkerStop(options.projectRoot);
       return { ok: true, message: `LiMa worker stop requested: ${marker}` };
     }
+    if (parsed.command.action === "start") {
+      if (process.env.LIMA_CODE_WORKER_DAEMON !== "1") {
+        return {
+          ok: false,
+          message:
+            "Always-on daemon is gated. Set LIMA_CODE_WORKER_DAEMON=1 after operator approval, then retry /lima daemon start.",
+        };
+      }
+      return runWorkLoop({
+        command: {
+          mode: "loop",
+          maxTasks: 100,
+          maxMinutes: parsed.command.maxMinutes,
+          intervalMs: parsed.command.intervalMs,
+          backoffMs: parsed.command.backoffMs,
+        },
+        projectRoot: options.projectRoot,
+        client,
+        runTask,
+        writeAudit,
+        notify,
+        lifecycleHooks,
+        sleep: options.sleep ?? sleep,
+        now: options.now,
+        signal: options.signal,
+        idleRetry: true,
+      });
+    }
     const stop = readWorkerStop(options.projectRoot);
     return {
       ok: true,
@@ -277,6 +305,7 @@ async function runWorkLoop(options: {
   sleep: (ms: number, signal?: AbortSignal) => Promise<void>;
   now?: () => number;
   signal?: AbortSignal;
+  idleRetry?: boolean;
 }): Promise<LiMaCommandRunnerResult> {
   const taskLines: string[] = [];
   const budget = createWorkerBudget({
@@ -326,6 +355,10 @@ async function runWorkLoop(options: {
       return { ok: false, message: `LiMa work stopped after fetch error: ${fetched.error}` };
     }
     if (!fetched.value) {
+      if (options.idleRetry) {
+        await options.sleep(options.command.intervalMs, options.signal);
+        continue;
+      }
       const prefix = processed > 0 ? `LiMa work processed ${processed} task(s). ` : "";
       await notifyBestEffort(options.notify, {
         type: "work_stopped",
