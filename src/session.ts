@@ -1940,7 +1940,7 @@ ${skillMd}
     // Detect verbose thinking — count thinking-like lines
     const lines = text.split("\n").filter((l) => l.trim().length > 0);
     const thinkingRe =
-      /^(?:用户[问要需]|根据[我我的指约]|我[需应可]该|让我[来写提分]|这是一个|简单[来分]析|根据约束|根据指令|作为[一]|首先[我需]|我们需要|值得注意|The user|I need to|Let me|I should|Based on)/;
+      /^(?:用户[问要需想]|根据[我我的指约]|我[需应可]该|让我[来写提分]|这是一个|简单[来分]析|根据约束|根据指令|作为[一]|首先[我需]|我们需要|值得注意|The user|I need to|Let me|I should|Based on|I can|For this|This is|I will|In this|To solve|We need|It is|There are|My approach|The answer|I think|Let's|Here is|For this)/;
     let thinkingLines = 0;
     for (const line of lines) {
       if (thinkingRe.test(line.trim())) {
@@ -1948,7 +1948,13 @@ ${skillMd}
       }
     }
 
-    if (thinkingLines >= 1 && thinkingLines >= lines.length * 0.2) {
+    // Also detect numbered thinking: "1. xxx\n2. xxx" pattern
+    const numberedThinking = text.match(/^[\d]+\.\s+\S+/gm);
+    if (numberedThinking && numberedThinking.length >= 3 && !text.includes("```")) {
+      thinkingLines = Math.max(thinkingLines, numberedThinking.length);
+    }
+
+    if (thinkingLines >= 1 && thinkingLines >= lines.length * 0.15) {
       // Find last non-thinking line (the actual answer)
       for (let i = lines.length - 1; i >= 0; i--) {
         if (!thinkingRe.test(lines[i].trim()) && lines[i].trim().length > 3) {
