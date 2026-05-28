@@ -1,9 +1,13 @@
 import React from "react";
 import { render } from "ink";
+import * as fs from "fs";
+import * as path from "path";
+import { fileURLToPath } from "url";
 import { setShellIfWindows } from "./common/shell-utils";
 import { checkForNpmUpdate, promptForPendingUpdate, type PackageInfo } from "./updateCheck";
 import { AppContainer } from "./ui";
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const args = process.argv.slice(2);
 const packageInfo = readPackageInfo();
 
@@ -71,7 +75,7 @@ let initialPrompt = extractInitialPrompt(args);
 const projectRoot = process.cwd();
 configureWindowsShell();
 
-if (!process.stdin.isTTY) {
+if (!process.stdin.isTTY && !process.env.LIMA_FORCE_TTY) {
   process.stderr.write("lima-code requires an interactive terminal (TTY). " + "Re-run from a real terminal session.\n");
   process.exit(1);
 }
@@ -94,7 +98,7 @@ async function main(): Promise<void> {
         initialPrompt={appInitialPrompt}
         onRestart={() => restartRef.current?.()}
       />,
-      { exitOnCtrlC: false }
+      { exitOnCtrlC: false, isRawModeSupported: !!process.stdin.isTTY || !!process.env.LIMA_FORCE_TTY }
     );
 
     restartRef.current = () => {
@@ -132,7 +136,8 @@ function configureWindowsShell(): void {
 
 function readPackageInfo(): PackageInfo {
   try {
-    const pkg = require("../package.json") as { name?: unknown; version?: unknown };
+    const pkgPath = path.resolve(__dirname, "..", "package.json");
+    const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8")) as { name?: unknown; version?: unknown };
     return {
       name: typeof pkg.name === "string" ? pkg.name : "lima-code",
       version: typeof pkg.version === "string" ? pkg.version : "",
