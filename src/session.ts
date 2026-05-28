@@ -1918,34 +1918,34 @@ ${skillMd}
     // Remove explicit think blocks
     const thinkTagRe = new RegExp("<think>[\\s\\S]*?<\\/think>\\s*", "g");
     const cleaned = content.replace(thinkTagRe, "").trim();
-    if (cleaned !== content.trim() && cleaned.length > 0) {
-      return cleaned;
+    const text = cleaned || content.trim();
+
+    // Extract code blocks as the real answer
+    const codeBlocks = text.match(/```[\s\S]*?```/g);
+    if (codeBlocks && codeBlocks.length > 0) {
+      const afterCode = text.substring(text.lastIndexOf("```") + 3).trim();
+      return codeBlocks.join("\n\n") + (afterCode.length > 5 ? "\n\n" + afterCode : "");
     }
 
-    // Detect verbose Chinese thinking patterns
-    // Match: "用户问了...", "根据...", "我应该...", "让我..." followed by actual content
-    const cnThinkingPatterns = [
-      /^(?:用户[问要需]|根据[我我的指]|我[需应可]该|让我[来写提分]|这个问题|这是一个|我可以[提提]|简单[来分]析|对于这)[\s\S]{20,}?(?:[。！]\s*\n\s*\n)([\s\S]+)$/m,
-      /^(?:用户[问要需]|根据[我我的指]|我[需应可]该|让我[来写提分])[\s\S]{30,}?(?:\n\s*\n)([\s\S]+)$/m,
-    ];
-
-    for (const pattern of cnThinkingPatterns) {
-      const match = cleaned.match(pattern);
-      if (match && match[1] && match[1].trim().length > 10) {
-        return match[1].trim();
+    // Detect verbose thinking — count thinking-like lines
+    const lines = text.split("\n").filter((l) => l.trim().length > 0);
+    const thinkingRe =
+      /^(?:用户[问要需]|根据[我我的指约]|我[需应可]该|让我[来写提分]|这是一个|简单[来分]析|根据约束|根据指令|作为[一]|首先[我需]|我们需要|值得注意|The user|I need to|Let me|I should|Based on)/;
+    let thinkingLines = 0;
+    for (const line of lines) {
+      if (thinkingRe.test(line.trim())) {
+        thinkingLines++;
       }
     }
 
-    // Detect verbose English thinking patterns
-    const enThinkingPatterns = [
-      /^(?:The user|I need to|Let me|I should|This is a|I can provide)[\s\S]{30,}?(?:\.\s*\n\s*\n)([\s\S]+)$/m,
-    ];
-
-    for (const pattern of enThinkingPatterns) {
-      const match = cleaned.match(pattern);
-      if (match && match[1] && match[1].trim().length > 10) {
-        return match[1].trim();
+    if (thinkingLines >= 1 && thinkingLines >= lines.length * 0.2) {
+      // Find last non-thinking line (the actual answer)
+      for (let i = lines.length - 1; i >= 0; i--) {
+        if (!thinkingRe.test(lines[i].trim()) && lines[i].trim().length > 3) {
+          return lines.slice(i).join("\n").trim();
+        }
       }
+      return "";
     }
 
     return content;
