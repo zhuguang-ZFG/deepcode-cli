@@ -1,6 +1,6 @@
 /**
  * Headless execution engine — runs prompts without Ink TUI.
- * Supports both chat prompts and /lima commands.
+ * Supports chat, coding, and /lima commands with streaming output.
  */
 
 export type HeadlessResult = {
@@ -11,9 +11,13 @@ export type HeadlessResult = {
 };
 
 /**
- * Call LiMa Server API directly (non-streaming).
+ * Call LiMa Server with streaming support for lower first-token latency.
  */
-async function callLiMaServer(prompt: string, projectRoot: string): Promise<string> {
+async function callLiMaServer(
+  prompt: string,
+  projectRoot: string,
+  opts: { model?: string; maxTokens?: number } = {}
+): Promise<string> {
   const { resolveCurrentSettings } = await import("./ui/App");
   const settings = resolveCurrentSettings(projectRoot) as {
     env?: { BASE_URL?: string; API_KEY?: string };
@@ -22,13 +26,32 @@ async function callLiMaServer(prompt: string, projectRoot: string): Promise<stri
   const baseURL = settings.env?.BASE_URL || "https://chat.donglicao.com/v1";
   const apiKey = settings.env?.API_KEY || "";
 
+  // Detect coding intent → use lima-code model
+  const codingSignals = [
+    "code",
+    "function",
+    "class",
+    "implement",
+    "fix",
+    "write",
+    "代码",
+    "函数",
+    "实现",
+    "修复",
+    "编写",
+    "写一个",
+    "重构",
+  ];
+  const isCode = codingSignals.some((s) => prompt.toLowerCase().includes(s));
+  const model = opts.model || settings.model || (isCode ? "lima-code" : "lima-1.3");
+
   const url = `${baseURL}/chat/completions`;
-  const body = {
-    model: settings.model || "lima-1.3",
+  const body: Record<string, unknown> = {
+    model,
     messages: [{ role: "user", content: prompt }],
-    max_tokens: 2000,
+    max_tokens: opts.maxTokens || 4096,
     temperature: 0,
-    stream: false,
+    stream: true,
   };
 
   const response = await fetch(url, {
@@ -45,9 +68,39 @@ async function callLiMaServer(prompt: string, projectRoot: string): Promise<stri
     throw new Error(`LiMa Server ${response.status}: ${text.substring(0, 200)}`);
   }
 
-  const data = (await response.json()) as Record<string, unknown>;
-  const choices = data.choices as Array<{ message?: Record<string, unknown> }> | undefined;
-  return (choices?.[0]?.message?.content as string) || "";
+  // Stream SSE response, output chunks progressively
+  let fullContent = "";
+  const reader = response.body?.getReader();
+  if (!reader) {
+    const data = (await response.json()) as Record<string, unknown>;
+    const choices = data.choices as Array<{ message?: Record<string, unknown> }> | undefined;
+    return (choices?.[0]?.message?.content as string) || "";
+  }
+
+  const decoder = new TextDecoder();
+  let buffer = "";
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() || "";
+    for (const line of lines) {
+      if (!line.startsWith("data: ") || line === "data: [DONE]") continue;
+      try {
+        const chunk = JSON.parse(line.slice(6));
+        const content = chunk.choices?.[0]?.delta?.content;
+        if (content) {
+          fullContent += content;
+          process.stderr.write(content);
+        }
+      } catch {
+        // Skip unparseable chunks
+      }
+    }
+  }
+  process.stderr.write("\n");
+  return fullContent || "No response";
 }
 
 /**
