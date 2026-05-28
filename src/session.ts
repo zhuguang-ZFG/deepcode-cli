@@ -1927,6 +1927,17 @@ ${skillMd}
       return codeBlocks.join("\n\n") + (afterCode.length > 5 ? "\n\n" + afterCode : "");
     }
 
+    // Extract embedded answer: "答案是2" → "2", "F(42) = 267914296" → "267914296"
+    const answerMatch =
+      text.match(/[答结][案果][是为：:]\s*[「"']?([^。\n"']+)/) ||
+      text.match(/[Aa]nswer[:\s]+([^.\n]+)/) ||
+      text.match(/F\(\d+\)\s*=\s*(\d[\d,. ]*)/) ||
+      text.match(/\d+!\s*=\s*(\d[\d,. ]*)/) ||
+      text.match(/(?:所以|因此|最终)[：:是为]?\s*([^。\n]{1,50})/);
+    if (answerMatch && answerMatch[1] && answerMatch[1].trim().length > 0) {
+      return answerMatch[1].trim();
+    }
+
     // Detect verbose thinking — count thinking-like lines
     const lines = text.split("\n").filter((l) => l.trim().length > 0);
     const thinkingRe =
@@ -1945,7 +1956,8 @@ ${skillMd}
           return lines.slice(i).join("\n").trim();
         }
       }
-      return "";
+      // All lines are thinking — return original content (don't strip to empty)
+      return content;
     }
 
     return content;
