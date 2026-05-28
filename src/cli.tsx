@@ -25,6 +25,9 @@ if (args.includes("--help") || args.includes("-h")) {
       "  lima-code                             Launch the interactive TUI in the current directory",
       "  lima-code -p <prompt>                 Launch with a pre-filled prompt",
       "  lima-code --prompt <prompt>           Same as -p",
+      "  lima-code --headless -p <prompt>      Run prompt in headless mode (no TUI)",
+      "  lima-code --headless -p <p> --json    Headless + JSON output",
+      "  lima-code --headless                  Interactive headless (stdin line by line)",
       "  lima-code --version                   Print the version",
       "  lima-code --help                      Show this help",
       "",
@@ -73,8 +76,47 @@ function extractInitialPrompt(args: string[]): string | undefined {
 
 let initialPrompt = extractInitialPrompt(args);
 const projectRoot = process.cwd();
+const headless = args.includes("--headless");
+const jsonOutput = args.includes("--json");
 configureWindowsShell();
 
+// ── Agent/headless mode ───────────────────────────────────────────────────
+if (headless) {
+  const { runHeadless } = await import("./headless");
+
+  if (initialPrompt) {
+    const result = await runHeadless(initialPrompt, { json: jsonOutput });
+    process.exit(result.ok ? 0 : 1);
+  }
+
+  // Pipe mode: read from stdin
+  if (!process.stdin.isTTY) {
+    const chunks: Buffer[] = [];
+    for await (const chunk of process.stdin) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    }
+    const input = Buffer.concat(chunks).toString("utf-8").trim();
+    if (input) {
+      const result = await runHeadless(input, { json: jsonOutput });
+      process.exit(result.ok ? 0 : 1);
+    }
+    process.stderr.write("No input provided.\n");
+    process.exit(1);
+  }
+
+  // Interactive headless: read prompts from stdin line by line
+  const readline = await import("readline");
+  const rl = readline.createInterface({ input: process.stdin });
+  process.stderr.write("LiMa Code (headless) — type a prompt, press Enter:\n");
+  for await (const line of rl) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed === "/exit") break;
+    await runHeadless(trimmed, { json: jsonOutput });
+  }
+  process.exit(0);
+}
+
+// ── Human TUI mode ────────────────────────────────────────────────────────
 if (!process.stdin.isTTY && !process.env.LIMA_FORCE_TTY) {
   process.stderr.write("lima-code requires an interactive terminal (TTY). " + "Re-run from a real terminal session.\n");
   process.exit(1);
