@@ -1180,12 +1180,17 @@ ${skillMd}
 
         const message = response.choices?.[0]?.message;
         const rawContent = message?.content;
-        const content = typeof rawContent === "string" ? rawContent : "";
+        let content = typeof rawContent === "string" ? rawContent : "";
         const rawToolCalls = (message as { tool_calls?: unknown[] } | undefined)?.tool_calls ?? null;
         toolCalls = this.normalizeLlmToolCalls(rawToolCalls);
         const rawThinking = (message as { reasoning_content?: unknown } | undefined)?.reasoning_content;
         const thinking = typeof rawThinking === "string" ? rawThinking : null;
         const refusal = (message as { refusal?: string } | undefined)?.refusal ?? null;
+
+        // Strip verbose thinking that some backends return as content
+        if (content && !thinking) {
+          content = this.stripThinkingContent(content);
+        }
         // const html = content ? this.renderMarkdown(content) : "";
 
         if (this.isInterrupted(sessionId)) {
@@ -1903,6 +1908,47 @@ ${skillMd}
 
   private generateToolCallId(): string {
     return crypto.randomBytes(16).toString("hex");
+  }
+
+  /**
+   * Strip verbose thinking content that some backends return as the main content.
+   * Detects Chinese/English thinking patterns and extracts the actual answer.
+   */
+  private stripThinkingContent(content: string): string {
+    // Remove explicit think blocks
+    const thinkTagRe = new RegExp("<think>[\\s\\S]*?<\\/think>\\s*", "g");
+    const cleaned = content.replace(thinkTagRe, "").trim();
+    if (cleaned !== content.trim() && cleaned.length > 0) {
+      return cleaned;
+    }
+
+    // Detect verbose Chinese thinking patterns
+    // Match: "用户问了...", "根据...", "我应该...", "让我..." followed by actual content
+    const cnThinkingPatterns = [
+      /^(?:用户[问要需]|根据[我我的指]|我[需应可]该|让我[来写提分]|这个问题|这是一个|我可以[提提]|简单[来分]析|对于这)[\s\S]{20,}?(?:[。！]\s*\n\s*\n)([\s\S]+)$/m,
+      /^(?:用户[问要需]|根据[我我的指]|我[需应可]该|让我[来写提分])[\s\S]{30,}?(?:\n\s*\n)([\s\S]+)$/m,
+    ];
+
+    for (const pattern of cnThinkingPatterns) {
+      const match = cleaned.match(pattern);
+      if (match && match[1] && match[1].trim().length > 10) {
+        return match[1].trim();
+      }
+    }
+
+    // Detect verbose English thinking patterns
+    const enThinkingPatterns = [
+      /^(?:The user|I need to|Let me|I should|This is a|I can provide)[\s\S]{30,}?(?:\.\s*\n\s*\n)([\s\S]+)$/m,
+    ];
+
+    for (const pattern of enThinkingPatterns) {
+      const match = cleaned.match(pattern);
+      if (match && match[1] && match[1].trim().length > 10) {
+        return match[1].trim();
+      }
+    }
+
+    return content;
   }
 
   private normalizeLlmToolCalls(rawToolCalls: unknown[] | null | undefined): unknown[] | null {

@@ -98,7 +98,7 @@ async function main(): Promise<void> {
         initialPrompt={appInitialPrompt}
         onRestart={() => restartRef.current?.()}
       />,
-      { exitOnCtrlC: false, isRawModeSupported: !!process.stdin.isTTY || !!process.env.LIMA_FORCE_TTY }
+      { exitOnCtrlC: false }
     );
 
     restartRef.current = () => {
