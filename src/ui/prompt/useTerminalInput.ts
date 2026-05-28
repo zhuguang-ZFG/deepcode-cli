@@ -239,7 +239,8 @@ export function useTerminalInput(
   inputHandler: (input: string, key: InputKey) => void,
   options: { isActive?: boolean } = {}
 ): void {
-  const { stdin, setRawMode } = useStdin();
+  const { stdin, setRawMode: rawSetRawMode } = useStdin();
+  const setRawMode = process.stdin.isTTY ? rawSetRawMode : (_v: boolean) => {};
   const isActive = options.isActive ?? true;
   const handlerRef = useRef(inputHandler);
   handlerRef.current = inputHandler;

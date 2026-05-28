@@ -4,8 +4,8 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { writeLiMaTaskStartHook } from "../lima/lifecycle-hooks.ts";
-import type { LiMaAgentTaskRequest } from "../lima/agent-task-types.ts";
+import { writeLiMaTaskStartHook } from "../lima/lifecycle-hooks";
+import type { LiMaAgentTaskRequest } from "../lima/agent-task-types";
 
 const SECTIONS = ["## Context", "## Task", "## Constraints", "## Verify", "## Output"];
 

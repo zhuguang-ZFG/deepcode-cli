@@ -1,4 +1,4 @@
-import type React from "react";
+import React from "react";
 import { Text, type TextProps } from "ink";
 import Gradient from "ink-gradient";
 

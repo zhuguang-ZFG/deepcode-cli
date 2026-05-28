@@ -1,6 +1,6 @@
 /**
- * Headless execution engine — runs a single prompt without Ink TUI.
- * Calls LiMa Server API directly (non-streaming) for clean responses.
+ * Headless execution engine — runs prompts without Ink TUI.
+ * Supports both chat prompts and /lima commands.
  */
 
 export type HeadlessResult = {
@@ -12,7 +12,6 @@ export type HeadlessResult = {
 
 /**
  * Call LiMa Server API directly (non-streaming).
- * This avoids streaming path thinking contamination.
  */
 async function callLiMaServer(prompt: string, projectRoot: string): Promise<string> {
   const { resolveCurrentSettings } = await import("./ui/App");
@@ -52,8 +51,24 @@ async function callLiMaServer(prompt: string, projectRoot: string): Promise<stri
 }
 
 /**
- * Run a single prompt in headless mode and return the result.
- * Uses non-streaming path to avoid thinking contamination.
+ * Route /lima commands through the command runner.
+ */
+async function executeLiMaCommand(input: string, projectRoot: string): Promise<string> {
+  const { executeLiMaCommand: runCmd } = await import("./lima/command-runner");
+  const { LiMaAgentTaskClient } = await import("./lima/agent-task-client");
+
+  const client = new LiMaAgentTaskClient();
+  const result = await runCmd(input, {
+    projectRoot,
+    client: client.isConfigured() ? client : undefined,
+  });
+
+  return result.message || (result.ok ? "OK" : "Failed");
+}
+
+/**
+ * Run a single prompt in headless mode.
+ * Routes /lima commands to command runner, everything else to LiMa Server.
  */
 export async function runHeadless(
   prompt: string,
@@ -62,8 +77,16 @@ export async function runHeadless(
   const projectRoot = options.projectRoot || process.cwd();
 
   try {
-    const raw = await callLiMaServer(prompt, projectRoot);
-    const content = raw.trim();
+    let content: string;
+
+    // Route /lima commands to command runner
+    if (prompt.trim().startsWith("/lima")) {
+      content = await executeLiMaCommand(prompt.trim(), projectRoot);
+    } else {
+      content = await callLiMaServer(prompt, projectRoot);
+    }
+
+    content = content.trim();
 
     const result: HeadlessResult = {
       ok: true,
