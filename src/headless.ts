@@ -83,8 +83,21 @@ async function callLiMaServer(
           process.stderr.write(content);
         }
       } catch {
-        // Skip unparseable chunks
+        // Skip malformed SSE chunks (control messages, partial JSON)
+        continue;
       }
+    }
+  }
+  // Flush trailing buffer (incomplete last SSE line)
+  if (buffer.trim()) {
+    try {
+      const lastChunk = JSON.parse(buffer.trim());
+      const tail = lastChunk.choices?.[0]?.delta?.content;
+      if (tail) {
+        fullContent += tail;
+      }
+    } catch {
+      // ignore trailing garbage
     }
   }
   process.stderr.write("\n");
