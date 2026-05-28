@@ -12,6 +12,7 @@ export type HeadlessResult = {
 
 /**
  * Call LiMa Server with streaming support for lower first-token latency.
+ * Server-side routing handles scenario detection and backend selection.
  */
 async function callLiMaServer(
   prompt: string,
@@ -26,30 +27,17 @@ async function callLiMaServer(
   const baseURL = settings.env?.BASE_URL || "https://chat.donglicao.com/v1";
   const apiKey = settings.env?.API_KEY || "";
 
-  // Detect coding intent → use lima-code model
-  const codingSignals = [
-    "code",
-    "function",
-    "class",
-    "implement",
-    "fix",
-    "write",
-    "代码",
-    "函数",
-    "实现",
-    "修复",
-    "编写",
-    "写一个",
-    "重构",
-  ];
-  const isCode = codingSignals.some((s) => prompt.toLowerCase().includes(s));
-  const model = opts.model || settings.model || (isCode ? "lima-code" : "lima-1.3");
+  // Use lima model — server-side routing detects scenario and picks backend
+  const model = opts.model || settings.model || "lima";
+
+  // Adaptive max_tokens by prompt length (longer prompts → more output)
+  const maxTokens = opts.maxTokens || (prompt.length > 500 ? 16384 : prompt.length > 200 ? 8192 : 4096);
 
   const url = `${baseURL}/chat/completions`;
   const body: Record<string, unknown> = {
     model,
     messages: [{ role: "user", content: prompt }],
-    max_tokens: opts.maxTokens || 4096,
+    max_tokens: maxTokens,
     temperature: 0,
     stream: true,
   };
@@ -156,7 +144,12 @@ export async function runHeadless(
     return result;
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
-    const result: HeadlessResult = { ok: false, content: "", sessionId: "", error: msg };
+    const result: HeadlessResult = {
+      ok: false,
+      content: "",
+      sessionId: "",
+      error: msg,
+    };
 
     if (options.json) {
       process.stdout.write(JSON.stringify(result, null, 2) + "\n");
