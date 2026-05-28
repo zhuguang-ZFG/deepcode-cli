@@ -1927,13 +1927,12 @@ ${skillMd}
       return codeBlocks.join("\n\n") + (afterCode.length > 5 ? "\n\n" + afterCode : "");
     }
 
-    // Extract embedded answer: "答案是2" → "2", "F(42) = 267914296" → "267914296"
+    // Extract embedded answer only when it's clearly in the text
+    // "答案是2" → "2", "F(42) = 267914296" → "267914296"
     const answerMatch =
       text.match(/[答结][案果][是为：:]\s*[「"']?([^。\n"']+)/) ||
       text.match(/[Aa]nswer[:\s]+([^.\n]+)/) ||
-      text.match(/F\(\d+\)\s*=\s*(\d[\d,. ]*)/) ||
-      text.match(/\d+!\s*=\s*(\d[\d,. ]*)/) ||
-      text.match(/(?:所以|因此|最终)[：:是为]?\s*([^。\n]{1,50})/);
+      text.match(/F\(\d+\)\s*=\s*(\d[\d,. ]*)/);
     if (answerMatch && answerMatch[1] && answerMatch[1].trim().length > 0) {
       return answerMatch[1].trim();
     }
