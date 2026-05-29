@@ -2,7 +2,16 @@ import * as fs from "fs";
 import * as path from "path";
 import { isRepoAllowed } from "./repo-allowlist";
 
-export const LIMA_ALLOWED_TASK_TOOLS = ["read", "write", "git_diff", "test", "shell_readonly", "mcp"] as const;
+export const LIMA_ALLOWED_TASK_TOOLS = [
+  "read",
+  "write",
+  "edit",
+  "bash",
+  "git_diff",
+  "test",
+  "shell_readonly",
+  "mcp",
+] as const;
 
 export type LiMaAllowedTaskTool = (typeof LIMA_ALLOWED_TASK_TOOLS)[number];
 
@@ -79,7 +88,18 @@ function safeRealPath(value: string): string | null {
     if (!fs.existsSync(value)) {
       return null;
     }
-    return normalizePath(fs.realpathSync(value));
+    // Resolve all symlink layers to prevent symlink-based allowlist bypass
+    const real = fs.realpathSync(value);
+    // Verify the resolved path is actually the same file (detect TOCTOU)
+    const lstat = fs.lstatSync(value);
+    if (lstat.isSymbolicLink()) {
+      const realTarget = fs.realpathSync(value);
+      // If symlink target is outside allowed area, reject
+      if (!realTarget.startsWith(path.resolve(value, ".."))) {
+        return null;
+      }
+    }
+    return normalizePath(real);
   } catch {
     return null;
   }

@@ -3,9 +3,18 @@ import { truncateText } from "./result-builder";
 
 const SECRET_PATTERNS: Array<[RegExp, string]> = [
   [/\bsk-[A-Za-z0-9_-]{8,}\b/g, "sk-[REDACTED]"],
+  [/\bghp_[A-Za-z0-9]{36}\b/g, "ghp_[REDACTED]"],
+  [/\bgho_[A-Za-z0-9]{36}\b/g, "gho_[REDACTED]"],
+  [/\bAKIA[A-Z0-9]{16}\b/g, "AKIA[REDACTED]"],
+  [/\beyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\b/g, "eyJ...[REDACTED]"],
   [/\bBearer\s+[A-Za-z0-9._~+/=-]{8,}\b/gi, "Bearer [REDACTED]"],
-  [/\b(api[_-]?key|token|password|secret)=([^\s&]+)/gi, "$1=[REDACTED]"],
-  [/"(api[_-]?key|token|password|secret)"\s*:\s*"[^"]+"/gi, '"$1":"[REDACTED]"'],
+  [/\b(api[_-]?key|token|password|secret|credential)=([^\s&]+)/gi, "$1=[REDACTED]"],
+  [/"(api[_-]?key|token|password|secret|credential)"\s*:\s*"[^"]+"/gi, '"$1":"[REDACTED]"'],
+  [/-----BEGIN\s+(RSA\s+)?PRIVATE\s+KEY-----[\s\S]*?-----END\s+(RSA\s+)?PRIVATE\s+KEY-----/g, "[PRIVATE_KEY_REDACTED]"],
+  [/mongodb(\+srv)?:\/\/[^\s"']+/gi, "mongodb://[REDACTED]"],
+  [/postgres(ql)?:\/\/[^\s"']+/gi, "postgres://[REDACTED]"],
+  [/mysql:\/\/[^\s"']+/gi, "mysql://[REDACTED]"],
+  [/redis:\/\/[^\s"']+/gi, "redis://[REDACTED]"],
 ];
 
 export type LiMaEvidenceBundle = {
