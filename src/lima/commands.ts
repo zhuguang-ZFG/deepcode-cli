@@ -25,7 +25,15 @@ export type LiMaCommand =
       backoffMs: number;
     }
   | { kind: "task"; taskId: string }
-  | { kind: "review" };
+  | { kind: "review" }
+  | { kind: "probe"; json: boolean }
+  | {
+      kind: "drone";
+      maxTasks: number;
+      maxMinutes: number;
+      allowMediumRisk: boolean;
+      intervalMs: number;
+    };
 
 export type LiMaCommandParseResult = { ok: true; command: LiMaCommand } | { ok: false; error: string };
 
@@ -76,6 +84,13 @@ export function parseLiMaCommand(input: string): LiMaCommandParseResult {
   if (subcommand === "review") {
     return { ok: true, command: { kind: "review" } };
   }
+  if (subcommand === "probe") {
+    const json = parts.includes("--json");
+    return { ok: true, command: { kind: "probe", json } };
+  }
+  if (subcommand === "drone") {
+    return parseDroneCommand(parts.slice(2));
+  }
   if (subcommand === "task") {
     const taskId = parts[2] ?? "";
     if (!taskId) {
@@ -96,6 +111,8 @@ export function formatLiMaCommandHelp(): string {
     "/lima test [--cmd <command>]",
     "/lima fix",
     "/lima next",
+    "/lima probe [--json]",
+    "/lima drone [--max-tasks <n>] [--max-minutes <n>] [--risk]",
     "/lima audit [--last <n>]",
     "/lima daemon status",
     "/lima daemon stop",
@@ -177,6 +194,29 @@ function parseWorkCommand(args: string[]): LiMaCommandParseResult {
   };
 }
 
+function parseDroneCommand(args: string[]): LiMaCommandParseResult {
+  const maxTasks = readPositiveInt(args, "--max-tasks", 10);
+  if (!maxTasks.ok) return maxTasks;
+  const maxMinutes = readPositiveInt(args, "--max-minutes", 60);
+  if (!maxMinutes.ok) return maxMinutes;
+  const intervalMs = readPositiveInt(args, "--interval-ms", 2000);
+  if (!intervalMs.ok) return intervalMs;
+  const allowMediumRisk = args.includes("--risk");
+  if (maxTasks.value > 50) {
+    return { ok: false, error: "Usage: /lima drone --max-tasks must be 50 or less." };
+  }
+  return {
+    ok: true,
+    command: {
+      kind: "drone",
+      maxTasks: maxTasks.value,
+      maxMinutes: maxMinutes.value,
+      allowMediumRisk,
+      intervalMs: intervalMs.value,
+    },
+  };
+}
+
 function readPositiveInt(
   args: string[],
   name: string,
@@ -210,5 +250,5 @@ function readRestCommand(args: string[], defaultValue: string): string {
 }
 
 function usageText(): string {
-  return "Usage: /lima connect | /lima status | /lima doctor | /lima plan | /lima test [--cmd <command>] | /lima next | /lima audit [--last <n>] | /lima daemon status | /lima daemon stop | /lima work --once | /lima work --loop --max-tasks <n> [--max-minutes <n>] | /lima task <task_id> | /lima review | /lima ship";
+  return "Usage: /lima connect | /lima status | /lima doctor | /lima plan | /lima test [--cmd <command>] | /lima next | /lima probe [--json] | /lima drone [--max-tasks <n>] [--risk] | /lima audit [--last <n>] | /lima daemon status | /lima daemon stop | /lima work --once | /lima work --loop --max-tasks <n> [--max-minutes <n>] | /lima task <task_id> | /lima review | /lima ship";
 }

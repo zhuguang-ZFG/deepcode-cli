@@ -109,6 +109,16 @@ export async function executeLiMaCommand(
     return formatTaskResult(result, false);
   }
 
+  if (parsed.command.kind === "probe") {
+    const { probeOnly } = await import("./drone");
+    const output = probeOnly(options.projectRoot, parsed.command.json);
+    return { ok: true, message: output };
+  }
+
+  if (parsed.command.kind === "drone") {
+    return runDroneMode(parsed.command, options, client, runTask, writeAudit, notify);
+  }
+
   if (parsed.command.kind === "audit") {
     return {
       ok: true,
@@ -588,6 +598,52 @@ async function runFixWorkflow(
 
   writeAudit(projectRoot, task, planResult);
   return { ok: true, message: lines };
+}
+
+async function runDroneMode(
+  command: { maxTasks: number; maxMinutes: number; allowMediumRisk: boolean; intervalMs: number },
+  options: LiMaCommandRunnerOptions,
+  client: LiMaCommandRunnerClient,
+  runTask: (task: LiMaTaskRunnerRequest, config: LiMaTaskRunnerConfig) => Promise<LiMaAgentTaskResult>,
+  writeAudit: (projectRoot: string, task: LiMaAgentTaskRequest, result: LiMaAgentTaskResult) => void,
+  notify: LiMaCommandRunnerNotifier
+): Promise<LiMaCommandRunnerResult> {
+  const { runDroneLoop } = await import("./drone");
+
+  const report = await runDroneLoop(
+    {
+      projectRoot: options.projectRoot,
+      maxTasks: command.maxTasks,
+      maxMinutes: command.maxMinutes,
+      allowMediumRisk: command.allowMediumRisk,
+      intervalMs: command.intervalMs,
+      signal: options.signal,
+    },
+    {
+      runTask,
+      submitResult: client.isConfigured()
+        ? async (result) => {
+            const r = await client.submitResult(result);
+            return { ok: r.ok, error: r.ok ? undefined : r.error };
+          }
+        : undefined,
+      writeAudit,
+      notify: options.notify ?? notify,
+    }
+  );
+
+  const lines = [
+    `Drone completed in ${(report.durationMs / 1000).toFixed(1)}s`,
+    `Tasks: ${report.tasksSucceeded}/${report.tasksAttempted} succeeded, ${report.tasksFailed} failed`,
+    `Findings: ${report.findingsResolved} resolved, ${report.findingsRemaining} remaining`,
+    report.checkpointUsed ? "Used checkpoint recovery" : "",
+    "",
+    ...report.messages,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  return { ok: report.tasksFailed === 0, message: lines };
 }
 
 export function formatLiMaCommandRunnerHelp(): string {
