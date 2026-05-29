@@ -18,6 +18,36 @@ export type HeadlessResult = {
 const MAX_AGENT_ROUNDS = 20;
 const DEFAULT_MAX_TOKENS = 16384;
 
+// Safety: commands that must never be executed
+const BLOCKED_COMMANDS =
+  /^\s*(rm\s+-rf|mkfs|dd\s+if=|shutdown|reboot|halt|poweroff|sudo|su\s+|killall|pkill|nc\s|ncat|socat)\b/;
+
+/**
+ * Validate a bash command against safety rules.
+ * Returns null if safe, or an error message if blocked.
+ */
+function validateCommand(command: string): string | null {
+  if (BLOCKED_COMMANDS.test(command)) {
+    return `BLOCKED: dangerous command detected: "${command.split(/\s/)[0]}"`;
+  }
+  if (command.includes("sudo ") || command.includes("su ")) {
+    return "BLOCKED: sudo/su not allowed";
+  }
+  return null;
+}
+
+/**
+ * Validate a file path is within the project sandbox.
+ */
+function validateFilePath(filePath: string, projectRoot: string): string | null {
+  const resolved = require("path").resolve(filePath);
+  const root = require("path").resolve(projectRoot);
+  if (!resolved.startsWith(root + require("path").sep) && resolved !== root) {
+    return `BLOCKED: path "${filePath}" escapes project root`;
+  }
+  return null;
+}
+
 /**
  * Build system prompt with project context (AGENTS.md / CLAUDE.md).
  */
@@ -124,6 +154,8 @@ async function executeTool(name: string, args: Record<string, unknown>, projectR
   switch (name) {
     case "bash": {
       const command = String(args.command || "");
+      const blockReason = validateCommand(command);
+      if (blockReason) return blockReason;
       const timeout = Number(args.timeout || 30) * 1000;
       try {
         const output = execSync(command, {
@@ -141,14 +173,22 @@ async function executeTool(name: string, args: Record<string, unknown>, projectR
     }
     case "read": {
       const filePath = String(args.file_path || "");
-      const content = await fs.readFile(filePath, "utf-8");
-      const offset = Number(args.offset || 0);
-      const limit = Number(args.limit || 2000);
-      const lines = content.split("\n");
-      return lines.slice(offset, offset + limit).join("\n");
+      const pathErr = validateFilePath(filePath, projectRoot);
+      if (pathErr) return pathErr;
+      try {
+        const content = await fs.readFile(filePath, "utf-8");
+        const offset = Number(args.offset || 0);
+        const limit = Number(args.limit || 2000);
+        const lines = content.split("\n");
+        return lines.slice(offset, offset + limit).join("\n");
+      } catch (err: unknown) {
+        return `ERROR: ${err instanceof Error ? err.message : String(err)}`;
+      }
     }
     case "write": {
       const filePath = String(args.file_path || "");
+      const pathErr = validateFilePath(filePath, projectRoot);
+      if (pathErr) return pathErr;
       const content = String(args.content || "");
       const dir = filePath.substring(0, filePath.lastIndexOf("/"));
       if (dir) await fs.mkdir(dir, { recursive: true });
@@ -157,6 +197,8 @@ async function executeTool(name: string, args: Record<string, unknown>, projectR
     }
     case "edit": {
       const filePath = String(args.file_path || "");
+      const pathErr = validateFilePath(filePath, projectRoot);
+      if (pathErr) return pathErr;
       const oldStr = String(args.old_string || "");
       const newStr = String(args.new_string || "");
       let content = await fs.readFile(filePath, "utf-8");
@@ -298,14 +340,31 @@ function parseToolCalls(raw: unknown): Array<{ id: string; name: string; argumen
 }
 
 /**
+ * Verify response quality — detect obvious errors.
+ */
+function verifyResponseQuality(content: string): { ok: boolean; warning?: string } {
+  if (!content || content.length < 5) {
+    return { ok: false, warning: "Response is too short" };
+  }
+  if (content.includes("Traceback (most recent call last)")) {
+    return { ok: false, warning: "Response contains Python traceback" };
+  }
+  if (content.includes("Error:") && content.includes("undefined")) {
+    return { ok: false, warning: "Response contains undefined error" };
+  }
+  return { ok: true };
+}
+
+/**
  * Run agent loop: send prompt → LLM responds → execute tools → repeat.
  */
 async function agentLoop(
   userPrompt: string,
   projectRoot: string,
   opts: { model?: string; maxTokens?: number; verbose?: boolean } = {}
-): Promise<{ content: string; toolCalls: number }> {
+): Promise<{ content: string; toolCalls: number; sessionId: string }> {
   const systemPrompt = await buildSystemPrompt(projectRoot);
+  const sessionId = `hls-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const messages: ChatCompletionMessageParam[] = [];
 
   if (systemPrompt) {
@@ -319,8 +378,12 @@ async function agentLoop(
     const { content, toolCalls } = await callLiMaWithTools(messages, projectRoot, opts);
 
     if (toolCalls.length === 0) {
-      // LLM finished — no more tools to call
-      return { content, toolCalls: totalToolCalls };
+      // LLM finished — verify quality before returning
+      const quality = verifyResponseQuality(content);
+      if (!quality.ok && opts.verbose) {
+        process.stderr.write(`\n[quality] WARNING: ${quality.warning}\n`);
+      }
+      return { content, toolCalls: totalToolCalls, sessionId };
     }
 
     // Add assistant message with tool_calls to history
@@ -363,7 +426,7 @@ async function agentLoop(
     }
   }
 
-  return { content: "[Max agent rounds reached]", toolCalls: totalToolCalls };
+  return { content: "[Max agent rounds reached]", toolCalls: totalToolCalls, sessionId };
 }
 
 /**
@@ -395,6 +458,7 @@ export async function runHeadless(
   try {
     let content: string;
     let toolCalls = 0;
+    let sessionId = "";
 
     // Route /lima commands to command runner
     if (prompt.trim().startsWith("/lima")) {
@@ -406,6 +470,7 @@ export async function runHeadless(
       });
       content = result.content;
       toolCalls = result.toolCalls;
+      sessionId = result.sessionId;
     }
 
     content = content.trim();
