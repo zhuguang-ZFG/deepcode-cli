@@ -342,6 +342,46 @@ function parseToolCalls(raw: unknown): Array<{ id: string; name: string; argumen
 }
 
 /**
+ * Report task outcome to LiMa Server for learning.
+ */
+async function reportOutcome(
+  sessionId: string,
+  backend: string,
+  success: boolean,
+  latencyMs: number,
+  toolCalls: number,
+  projectRoot: string
+): Promise<void> {
+  try {
+    const { resolveCurrentSettings } = await import("./ui/App");
+    const settings = resolveCurrentSettings(projectRoot) as {
+      env?: { BASE_URL?: string; API_KEY?: string };
+    };
+    const baseURL = settings.env?.BASE_URL || "https://chat.donglicao.com/v1";
+    const apiKey = settings.env?.API_KEY || "";
+
+    await fetch(`${baseURL.replace("/v1", "")}/agent/learn/outcome`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        task_id: sessionId,
+        backend,
+        scenario: "coding",
+        success,
+        latency_ms: latencyMs,
+        quality_score: success ? 0.8 : 0.2,
+      }),
+      signal: AbortSignal.timeout(5000),
+    });
+  } catch {
+    // Best-effort — don't fail the agent if reporting fails
+  }
+}
+
+/**
  * Verify response quality — detect obvious errors.
  */
 function verifyResponseQuality(content: string): { ok: boolean; warning?: string } {
@@ -385,6 +425,9 @@ async function agentLoop(
       if (!quality.ok && opts.verbose) {
         process.stderr.write(`\n[quality] WARNING: ${quality.warning}\n`);
       }
+      // Report outcome to server for learning
+      const startTime = Date.now();
+      await reportOutcome(sessionId, "cli-agent", quality.ok, Date.now() - startTime, totalToolCalls, projectRoot);
       return { content, toolCalls: totalToolCalls, sessionId };
     }
 
