@@ -221,7 +221,7 @@ async function executeTool(name: string, args: Record<string, unknown>, projectR
 async function callLiMaWithTools(
   messages: ChatCompletionMessageParam[],
   projectRoot: string,
-  opts: { model?: string; maxTokens?: number } = {}
+  opts: { model?: string; maxTokens?: number; sessionId?: string } = {}
 ): Promise<{
   content: string;
   toolCalls: Array<{ id: string; name: string; arguments: Record<string, unknown> }>;
@@ -251,6 +251,8 @@ async function callLiMaWithTools(
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${apiKey}`,
+      "X-Session-ID": opts.sessionId || "",
+      "X-Project-Root": projectRoot,
     },
     body: JSON.stringify(body),
   });
@@ -375,7 +377,7 @@ async function agentLoop(
   let totalToolCalls = 0;
 
   for (let round = 0; round < MAX_AGENT_ROUNDS; round++) {
-    const { content, toolCalls } = await callLiMaWithTools(messages, projectRoot, opts);
+    const { content, toolCalls } = await callLiMaWithTools(messages, projectRoot, { ...opts, sessionId });
 
     if (toolCalls.length === 0) {
       // LLM finished — verify quality before returning
@@ -412,6 +414,26 @@ async function agentLoop(
         result = await executeTool(tc.name, tc.arguments, projectRoot);
       } catch (err) {
         result = `ERROR: ${err instanceof Error ? err.message : String(err)}`;
+      }
+
+      // Show diff for write/edit operations
+      if (((tc.name === "write" || tc.name === "edit") && result.startsWith("OK:")) || result.startsWith("Written")) {
+        try {
+          const filePath = String(tc.arguments.file_path || "");
+          if (filePath) {
+            const { execSync } = await import("child_process");
+            const diff = execSync(`git diff --no-color -- "${filePath}" 2>/dev/null || true`, {
+              cwd: projectRoot,
+              encoding: "utf-8",
+              timeout: 5000,
+            }).trim();
+            if (diff) {
+              process.stderr.write(`\n[diff] ${filePath}:\n${diff.slice(0, 2000)}\n`);
+            }
+          }
+        } catch {
+          // Diff not available (file not in git)
+        }
       }
 
       if (opts.verbose) {
