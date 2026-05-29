@@ -28,6 +28,7 @@ if (args.includes("--help") || args.includes("-h")) {
       "  lima-code --headless -p <prompt>      Run prompt in headless mode (no TUI)",
       "  lima-code --headless -p <p> --json    Headless + JSON output",
       "  lima-code --headless                  Interactive headless (stdin line by line)",
+      "  lima-code --daemon                    Daemon mode: poll server for tasks",
       "  lima-code --version                   Print the version",
       "  lima-code --help                      Show this help",
       "",
@@ -87,15 +88,30 @@ function extractInitialPrompt(args: string[]): string | undefined {
 let initialPrompt = extractInitialPrompt(args);
 const projectRoot = process.cwd();
 const headless = args.includes("--headless");
+const daemon = args.includes("--daemon");
 const jsonOutput = args.includes("--json");
 configureWindowsShell();
+
+// ── Daemon mode ───────────────────────────────────────────────────────
+if (daemon) {
+  const { runDaemon } = await import("./daemon");
+  await runDaemon({
+    projectRoot,
+    verbose: args.includes("--verbose") || args.includes("-v"),
+  });
+  process.exit(0);
+}
 
 // ── Agent/headless mode ───────────────────────────────────────────────────
 if (headless) {
   const { runHeadless } = await import("./headless");
 
   if (initialPrompt) {
-    const result = await runHeadless(initialPrompt, { json: jsonOutput });
+    const result = await runHeadless(initialPrompt, {
+      json: jsonOutput,
+      projectRoot,
+      verbose: args.includes("--verbose"),
+    });
     process.exit(result.ok ? 0 : 1);
   }
 
