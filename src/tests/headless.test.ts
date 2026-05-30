@@ -22,6 +22,7 @@ test("runHeadless parses non-stream JSON chat responses from LiMa", async () => 
   const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), "lima-headless-json-"));
   tempDirs.push(projectRoot);
   const fetchUrls: string[] = [];
+  const outcomeBodies: Array<Record<string, unknown>> = [];
 
   globalThis.fetch = (async (input: string | URL, init?: RequestInit) => {
     const url = String(input);
@@ -40,6 +41,7 @@ test("runHeadless parses non-stream JSON chat responses from LiMa", async () => 
       );
     }
     if (url.endsWith("/agent/learn/outcome")) {
+      outcomeBodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
       return new Response(JSON.stringify({ ok: true }), { status: 200 });
     }
     return new Response("unexpected", { status: 404 });
@@ -57,6 +59,7 @@ test("runHeadless parses non-stream JSON chat responses from LiMa", async () => 
     fetchUrls.some((url) => url.endsWith("/agent/learn/outcome")),
     true
   );
+  assert.equal(typeof outcomeBodies[0]?.telemetry, "object");
 });
 
 test("runHeadless parses Anthropic-style SSE text from LiMa", async () => {
@@ -99,6 +102,7 @@ test("runHeadless exposes model retry telemetry when the first call fails", asyn
   const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), "lima-headless-retry-"));
   tempDirs.push(projectRoot);
   let chatCalls = 0;
+  let outcomeBody: Record<string, unknown> | undefined;
 
   globalThis.fetch = (async (input: string | URL, init?: RequestInit) => {
     const url = String(input);
@@ -119,6 +123,7 @@ test("runHeadless exposes model retry telemetry when the first call fails", asyn
       );
     }
     if (url.endsWith("/agent/learn/outcome")) {
+      outcomeBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
       return new Response(JSON.stringify({ ok: true }), { status: 200 });
     }
     return new Response("unexpected", { status: 404 });
@@ -136,6 +141,13 @@ test("runHeadless exposes model retry telemetry when the first call fails", asyn
   assert.equal(result.telemetry.modelCalls[0].ok, false);
   assert.match(result.telemetry.modelCalls[0].error ?? "", /simulated provider reset/);
   assert.equal(result.telemetry.modelCalls[1].ok, true);
+  const sentTelemetry = outcomeBody?.telemetry as {
+    retryCount?: number;
+    modelCalls?: Array<{ error?: string }>;
+  };
+  assert.equal(sentTelemetry.retryCount, 1);
+  assert.equal(sentTelemetry.modelCalls?.[0].error, "network_or_provider");
+  assert.doesNotMatch(JSON.stringify(sentTelemetry), /simulated provider reset/);
 });
 
 test("runHeadless reports model tool-call capability telemetry", async () => {

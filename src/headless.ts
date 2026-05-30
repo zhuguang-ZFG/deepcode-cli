@@ -110,6 +110,18 @@ function normalizeError(error: unknown): string {
   return String(error);
 }
 
+function classifyTelemetryError(error: unknown): string | undefined {
+  const text = normalizeError(error).toLowerCase();
+  if (!text) return undefined;
+  if (text.includes("timeout") || text.includes("abort")) return "timeout";
+  if (text.includes("401") || text.includes("403") || text.includes("forbidden") || text.includes("unauthorized")) {
+    return "auth";
+  }
+  if (text.includes("429") || text.includes("rate") || text.includes("quota")) return "rate_limit";
+  if (text.includes("reset") || text.includes("network") || text.includes("connect")) return "network_or_provider";
+  return "provider_error";
+}
+
 function mergeToolProtocol(left: HeadlessToolProtocol, right: HeadlessToolProtocol): HeadlessToolProtocol {
   if (left === "none") return right;
   if (right === "none" || left === right) return left;
@@ -612,8 +624,8 @@ async function reportOutcome(
   backend: string,
   success: boolean,
   latencyMs: number,
-  toolCalls: number,
-  projectRoot: string
+  projectRoot: string,
+  telemetry: HeadlessTelemetry
 ): Promise<HeadlessOutcomeTelemetry> {
   const startedAt = Date.now();
   try {
@@ -637,6 +649,25 @@ async function reportOutcome(
         success,
         latency_ms: latencyMs,
         quality_score: success ? 0.8 : 0.2,
+        telemetry: {
+          timeoutMs: telemetry.timeoutMs,
+          maxRetries: telemetry.maxRetries,
+          retryCount: telemetry.retryCount,
+          modelCalls: telemetry.modelCalls.map((call) => ({
+            attempt: call.attempt,
+            phase: call.phase,
+            stream: call.stream,
+            timeoutMs: call.timeoutMs,
+            latencyMs: call.latencyMs,
+            ok: call.ok,
+            status: call.status,
+            error: classifyTelemetryError(call.error),
+            contentChars: call.contentChars,
+            toolCalls: call.toolCalls,
+            toolProtocol: call.toolProtocol,
+          })),
+          toolCapability: telemetry.toolCapability,
+        },
       }),
       signal: AbortSignal.timeout(5000),
     });
@@ -683,6 +714,7 @@ async function agentLoop(
   const systemPrompt = await buildSystemPrompt(projectRoot);
   const sessionId = `hls-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const messages: ChatCompletionMessageParam[] = [];
+  const loopStartedAt = Date.now();
 
   if (systemPrompt) {
     messages.push({ role: "system", content: systemPrompt });
@@ -701,14 +733,13 @@ async function agentLoop(
         process.stderr.write(`\n[quality] WARNING: ${quality.warning}\n`);
       }
       // Report outcome to server for learning
-      const startTime = Date.now();
       opts.telemetry.outcomeReport = await reportOutcome(
         sessionId,
         "cli-agent",
         quality.ok,
-        Date.now() - startTime,
-        totalToolCalls,
-        projectRoot
+        Date.now() - loopStartedAt,
+        projectRoot,
+        opts.telemetry
       );
       return { content, toolCalls: totalToolCalls, sessionId };
     }
