@@ -33,6 +33,32 @@ import { GitFileHistory } from "./common/file-history";
 const MAX_SESSION_ENTRIES = 50;
 const DEFAULT_COMPACT_PROMPT_TOKEN_THRESHOLD = 128 * 1024;
 const DEEPSEEK_V4_COMPACT_PROMPT_TOKEN_THRESHOLD = 512 * 1024;
+const DEFAULT_MAX_MODEL_ITERATIONS = 20;
+const DEFAULT_LIMA_ROUTER_REQUEST_TIMEOUT_MS = 90_000;
+const DEFAULT_LIMA_ROUTER_MAX_RETRIES = 1;
+const LIMA_ROUTER_PROJECT_INSTRUCTION_MIN_CHARS = 3000;
+const LIMA_ROUTER_SAFE_SYSTEM_PROMPT = `You are LiMa Code, an interactive coding CLI.
+
+Help the user complete software engineering work in the current project.
+Use the provided tool schemas when local inspection or edits are needed.
+Keep answers concise and evidence-based.
+Do not reveal hidden reasoning.
+Do not invent non-programming URLs.
+Do not expose sensitive local configuration values.`;
+const LIMA_ROUTER_SAFE_DEFAULT_SKILL_PROMPT = `Default operating rules:
+- Stay aligned with the user's current request.
+- Plan only when the task needs multiple steps.
+- Prefer focused project inspection before broad changes.
+- Stop and ask only when ambiguity would change the implementation or verification path.`;
+const LIMA_ROUTER_PROJECT_INSTRUCTION_SUMMARY = `Project instructions are available locally in AGENTS.md and have been summarized for LiMa Router compatibility.
+
+Follow these project rules:
+- Keep changes scoped to the user's current request and preserve unrelated dirty worktree items.
+- Prefer existing project patterns and focused edits over broad refactors.
+- Run relevant local verification before claiming completion.
+- Do not expose sensitive configuration values or commit local runtime data, caches, generated release artifacts, or debug logs.
+- For LiMa Code work, verify the real CLI/TUI path when possible and report exact evidence.
+- When exact project-rule wording is required, read only the relevant small section of AGENTS.md instead of loading the whole file.`;
 
 type ChatCompletionDebugOptions = {
   enabled?: boolean;
@@ -123,6 +149,23 @@ function getTotalTokens(usage: ModelUsage | null | undefined): number {
   }
   const totalTokens = usage.total_tokens;
   return typeof totalTokens === "number" ? totalTokens : 0;
+}
+
+function readPositiveIntegerEnv(name: string, defaultValue: number): number {
+  const raw = process.env[name];
+  if (!raw) {
+    return defaultValue;
+  }
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : defaultValue;
+}
+
+function getLiMaRouterRequestTimeoutMs(): number {
+  return readPositiveIntegerEnv("LIMA_CODE_TUI_TIMEOUT_MS", DEFAULT_LIMA_ROUTER_REQUEST_TIMEOUT_MS);
+}
+
+function getLiMaRouterMaxRetries(): number {
+  return Math.min(5, readPositiveIntegerEnv("LIMA_CODE_TUI_MAX_RETRIES", DEFAULT_LIMA_ROUTER_MAX_RETRIES));
 }
 
 export type SessionStatus = "failed" | "pending" | "processing" | "waiting_for_user" | "completed" | "interrupted";
@@ -245,6 +288,11 @@ export type LlmStreamProgress = {
   estimatedTokens: number;
   formattedTokens: string;
   phase: "start" | "update" | "end";
+  transport?: "stream" | "non_stream";
+  attempt?: number;
+  maxAttempts?: number;
+  timeoutMs?: number;
+  lastError?: string;
 };
 
 export class SessionManager {
@@ -340,7 +388,9 @@ export class SessionManager {
     startedAt: string,
     estimatedTokens: number,
     phase: LlmStreamProgress["phase"],
-    sessionId?: string
+    sessionId?: string,
+    transport?: LlmStreamProgress["transport"],
+    telemetry?: Pick<LlmStreamProgress, "attempt" | "maxAttempts" | "timeoutMs" | "lastError">
   ): void {
     this.onLlmStreamProgress?.({
       requestId,
@@ -349,6 +399,8 @@ export class SessionManager {
       estimatedTokens: Math.round(estimatedTokens),
       formattedTokens: this.formatEstimatedTokens(estimatedTokens),
       phase,
+      transport,
+      ...telemetry,
     });
   }
 
@@ -384,7 +436,8 @@ export class SessionManager {
     const startedAt = new Date().toISOString();
     const startedAtMs = Date.now();
     let estimatedTokens = 0;
-    this.emitLlmStreamProgress(requestId, startedAt, estimatedTokens, "start", sessionId);
+    const transport = isLiMaRouterBaseURL(debug?.baseURL) ? "non_stream" : "stream";
+    this.emitLlmStreamProgress(requestId, startedAt, estimatedTokens, "start", sessionId, transport);
 
     const streamRequest = {
       ...request,
@@ -395,19 +448,27 @@ export class SessionManager {
       },
     };
 
-    if (isLiMaRouterBaseURL(debug?.baseURL)) {
+    if (transport === "non_stream") {
       const nonStreamRequest: Record<string, unknown> = {
         ...request,
         stream: false,
       };
       delete nonStreamRequest.stream_options;
+      const timeoutMs = getLiMaRouterRequestTimeoutMs();
+      const maxRetries = getLiMaRouterMaxRetries();
+      const requestOptions: Record<string, unknown> = { ...options, timeout: timeoutMs, maxRetries };
+      this.emitLlmStreamProgress(requestId, startedAt, estimatedTokens, "update", sessionId, transport, {
+        attempt: 1,
+        maxAttempts: maxRetries + 1,
+        timeoutMs,
+      });
       try {
         const response = await (
           client.chat.completions.create as unknown as (
             body: Record<string, unknown>,
             options?: Record<string, unknown>
           ) => Promise<unknown>
-        )(nonStreamRequest, options);
+        )(nonStreamRequest, requestOptions);
         this.logChatCompletionDebug(debug, {
           timestamp: new Date().toISOString(),
           location: debug?.location ?? "SessionManager.createChatCompletionStream:lima-non-stream",
@@ -416,12 +477,71 @@ export class SessionManager {
           model: typeof request.model === "string" ? request.model : undefined,
           baseURL: debug?.baseURL,
           durationMs: Date.now() - startedAtMs,
-          params: { ...debug?.params, options: summarizeCompletionOptions(options), transport: "non_stream" },
+          params: { ...debug?.params, options: summarizeCompletionOptions(requestOptions), transport: "non_stream" },
           request: nonStreamRequest,
           response,
         });
         return response as { choices?: Array<{ message?: Record<string, unknown> }>; usage?: ModelUsage | null };
       } catch (error) {
+        if (this.isLiMaRouterBlockedError(error)) {
+          const fallbackRequest = this.buildLiMaRouterBlockedFallbackRequest(nonStreamRequest);
+          try {
+            const response = await (
+              client.chat.completions.create as unknown as (
+                body: Record<string, unknown>,
+                options?: Record<string, unknown>
+              ) => Promise<unknown>
+            )(fallbackRequest, requestOptions);
+            this.logChatCompletionDebug(debug, {
+              timestamp: new Date().toISOString(),
+              location: "SessionManager.createChatCompletionStream:lima-non-stream-blocked-fallback",
+              requestId,
+              sessionId,
+              model: typeof request.model === "string" ? request.model : undefined,
+              baseURL: debug?.baseURL,
+              durationMs: Date.now() - startedAtMs,
+              params: {
+                ...debug?.params,
+                options: summarizeCompletionOptions(requestOptions),
+                transport: "non_stream",
+                fallback: "blocked_request",
+              },
+              request: fallbackRequest,
+              response,
+            });
+            return response as { choices?: Array<{ message?: Record<string, unknown> }>; usage?: ModelUsage | null };
+          } catch (fallbackError) {
+            const localResponse = this.buildLiMaRouterBlockedLocalResponse(error, fallbackError);
+            this.logChatCompletionDebug(debug, {
+              timestamp: new Date().toISOString(),
+              location: "SessionManager.createChatCompletionStream:lima-non-stream-blocked-local",
+              requestId,
+              sessionId,
+              model: typeof request.model === "string" ? request.model : undefined,
+              baseURL: debug?.baseURL,
+              durationMs: Date.now() - startedAtMs,
+              params: {
+                ...debug?.params,
+                options: summarizeCompletionOptions(requestOptions),
+                transport: "non_stream",
+                fallback: "local_blocked_report",
+              },
+              request: fallbackRequest,
+              error: {
+                name: "LiMaRouterBlockedFallbackError",
+                message: `initial: ${error instanceof Error ? error.message : String(error)}; fallback: ${
+                  fallbackError instanceof Error ? fallbackError.message : String(fallbackError)
+                }`,
+                stack: JSON.stringify({
+                  initial: normalizeDebugError(error),
+                  fallback: normalizeDebugError(fallbackError),
+                }),
+              },
+              response: localResponse,
+            });
+            return localResponse;
+          }
+        }
         this.logChatCompletionDebug(debug, {
           timestamp: new Date().toISOString(),
           location: debug?.location ?? "SessionManager.createChatCompletionStream:lima-non-stream",
@@ -430,7 +550,7 @@ export class SessionManager {
           model: typeof request.model === "string" ? request.model : undefined,
           baseURL: debug?.baseURL,
           durationMs: Date.now() - startedAtMs,
-          params: { ...debug?.params, options: summarizeCompletionOptions(options), transport: "non_stream" },
+          params: { ...debug?.params, options: summarizeCompletionOptions(requestOptions), transport: "non_stream" },
           request: nonStreamRequest,
           error: normalizeDebugError(error),
         });
@@ -449,7 +569,7 @@ export class SessionManager {
         });
         throw error;
       } finally {
-        this.emitLlmStreamProgress(requestId, startedAt, estimatedTokens, "end", sessionId);
+        this.emitLlmStreamProgress(requestId, startedAt, estimatedTokens, "end", sessionId, transport);
       }
     }
 
@@ -487,12 +607,12 @@ export class SessionManager {
         },
         request: streamRequest,
       });
-      this.emitLlmStreamProgress(requestId, startedAt, estimatedTokens, "end", sessionId);
+      this.emitLlmStreamProgress(requestId, startedAt, estimatedTokens, "end", sessionId, transport);
       throw error;
     }
 
     if (!response || typeof (response as { [Symbol.asyncIterator]?: unknown })[Symbol.asyncIterator] !== "function") {
-      this.emitLlmStreamProgress(requestId, startedAt, estimatedTokens, "end", sessionId);
+      this.emitLlmStreamProgress(requestId, startedAt, estimatedTokens, "end", sessionId, transport);
       this.logChatCompletionDebug(debug, {
         timestamp: new Date().toISOString(),
         location: debug?.location ?? "SessionManager.createChatCompletionStream",
@@ -527,7 +647,7 @@ export class SessionManager {
         return;
       }
       estimatedTokens += this.estimateStreamTokens(value);
-      this.emitLlmStreamProgress(requestId, startedAt, estimatedTokens, "update", sessionId);
+      this.emitLlmStreamProgress(requestId, startedAt, estimatedTokens, "update", sessionId, transport);
     };
 
     try {
@@ -623,7 +743,7 @@ export class SessionManager {
       });
       throw error;
     } finally {
-      this.emitLlmStreamProgress(requestId, startedAt, estimatedTokens, "end", sessionId);
+      this.emitLlmStreamProgress(requestId, startedAt, estimatedTokens, "end", sessionId, transport);
     }
 
     const toolCalls = Array.from(toolCallsByIndex.entries())
@@ -659,6 +779,89 @@ export class SessionManager {
       response: finalResponse,
     });
     return finalResponse;
+  }
+
+  private isLiMaRouterBlockedError(error: unknown): boolean {
+    if (!error || typeof error !== "object") {
+      return false;
+    }
+    const record = error as { status?: unknown; message?: unknown };
+    const message = typeof record.message === "string" ? record.message.toLowerCase() : "";
+    return record.status === 403 || message.includes("403") || message.includes("blocked");
+  }
+
+  private buildLiMaRouterBlockedFallbackRequest(request: Record<string, unknown>): Record<string, unknown> {
+    const lastUserContent = this.getLastTextMessageContent(request.messages, "user");
+    const fallbackNote =
+      "The previous LiMa Router request with local tools was blocked before execution. Answer without local tool calls and clearly say that live project inspection was blocked.";
+    return {
+      model: request.model,
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are LiMa Code. The previous tool-enabled request was blocked by the upstream router. Provide a concise fallback response without tools, explain the blocked layer, and do not pretend that local inspection succeeded.",
+        },
+        {
+          role: "user",
+          content: lastUserContent ? `${lastUserContent}\n\n${fallbackNote}` : fallbackNote,
+        },
+      ],
+      stream: false,
+    };
+  }
+
+  private buildLiMaRouterBlockedLocalResponse(
+    initialError: unknown,
+    fallbackError: unknown
+  ): { choices: Array<{ message: Record<string, unknown> }>; usage: null } {
+    const initialMessage = initialError instanceof Error ? initialError.message : String(initialError);
+    const fallbackMessage = fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
+    return {
+      choices: [
+        {
+          message: {
+            content: [
+              "LiMa Router blocked the model request before a usable response was produced.",
+              "",
+              "Layer: upstream model/provider admission",
+              `Initial request: ${initialMessage}`,
+              `Fallback request: ${fallbackMessage}`,
+              "",
+              "No local tool execution result should be assumed from this turn. Run /lima doctor or retry after switching provider/model routing if this persists.",
+            ].join("\n"),
+          },
+        },
+      ],
+      usage: null,
+    };
+  }
+
+  private getLastTextMessageContent(messages: unknown, role: string): string {
+    if (!Array.isArray(messages)) {
+      return "";
+    }
+
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      const message = messages[index] as { role?: unknown; content?: unknown };
+      if (message?.role !== role) {
+        continue;
+      }
+      if (typeof message.content === "string") {
+        return message.content;
+      }
+      if (!Array.isArray(message.content)) {
+        continue;
+      }
+      const textParts = message.content
+        .map((part) =>
+          (part as { type?: unknown; text?: unknown }).type === "text" ? (part as { text?: unknown }).text : ""
+        )
+        .filter((text): text is string => typeof text === "string" && text.length > 0);
+      return textParts.join("\n");
+    }
+
+    return "";
   }
 
   private logChatCompletionDebug(
@@ -697,6 +900,9 @@ The candidate skills are as follows:\n\n`;
     systemPrompt += "```\n" + JSON.stringify(simpleSkills, null, 2) + "\n```";
 
     const { client, model, baseURL, debugLogEnabled } = this.createOpenAIClient();
+    if (isLiMaRouterBaseURL(baseURL)) {
+      return this.identifyMatchingSkillNamesLocally(skills, userPrompt);
+    }
     if (!client) {
       return [];
     }
@@ -741,6 +947,24 @@ The candidate skills are as follows:\n\n`;
       }
       return [];
     }
+  }
+
+  private identifyMatchingSkillNamesLocally(skills: SkillInfo[], userPrompt: string): string[] {
+    const prompt = userPrompt.trim().toLowerCase();
+    if (!prompt) {
+      return [];
+    }
+
+    const unloaded = skills.filter((skill) => !skill.isLoaded);
+    const selected: SkillInfo[] = [];
+
+    for (const skill of unloaded) {
+      if (prompt.includes(skill.name.toLowerCase())) {
+        selected.push(skill);
+      }
+    }
+
+    return selected.slice(0, 3).map((skill) => skill.name);
   }
 
   async listSkills(sessionId?: string): Promise<SkillInfo[]> {
@@ -1172,7 +1396,7 @@ ${skillMd}
     this.sessionControllers.set(sessionId, sessionController);
 
     try {
-      const maxIterations = 80000; // about 1K RMB cost
+      const maxIterations = DEFAULT_MAX_MODEL_ITERATIONS;
       let toolCalls: unknown[] | null = null;
 
       for (let iteration = 0; iteration < maxIterations; iteration++) {
@@ -1214,7 +1438,12 @@ ${skillMd}
           await this.compactSession(sessionId, sessionController.signal);
         }
 
-        const messages = this.buildOpenAIMessages(this.listSessionMessages(sessionId), thinkingEnabled, model);
+        const messages = this.buildProviderOpenAIMessages(
+          this.listSessionMessages(sessionId),
+          thinkingEnabled,
+          model,
+          baseURL
+        );
         const thinkingOptions = buildThinkingRequestOptions(thinkingEnabled, baseURL, reasoningEffort);
         const response = await this.createChatCompletionStream(
           client,
@@ -1242,10 +1471,18 @@ ${skillMd}
         const rawThinking = (message as { reasoning_content?: unknown } | undefined)?.reasoning_content;
         const thinking = typeof rawThinking === "string" ? rawThinking : null;
         const refusal = (message as { refusal?: string } | undefined)?.refusal ?? null;
+        const repeatedToolCallLoopMessage = this.getRepeatedToolCallLoopMessage(
+          this.listSessionMessages(sessionId),
+          toolCalls
+        );
 
         // Strip verbose thinking that some backends return as content
         if (content && !thinking) {
           content = this.stripThinkingContent(content);
+        }
+        if (repeatedToolCallLoopMessage) {
+          content = repeatedToolCallLoopMessage;
+          toolCalls = null;
         }
         // const html = content ? this.renderMarkdown(content) : "";
 
@@ -2037,6 +2274,69 @@ ${skillMd}
     });
   }
 
+  private getRepeatedToolCallLoopMessage(messages: SessionMessage[], toolCalls: unknown[] | null): string | null {
+    if (!toolCalls || toolCalls.length === 0) {
+      return null;
+    }
+
+    const previousCounts = new Map<string, number>();
+    for (const message of messages) {
+      for (const previousToolCall of this.getAssistantToolCalls(message)) {
+        const signature = this.getToolCallSignature(previousToolCall);
+        if (!signature) {
+          continue;
+        }
+        previousCounts.set(signature, (previousCounts.get(signature) ?? 0) + 1);
+      }
+    }
+
+    for (const toolCall of toolCalls) {
+      const signature = this.getToolCallSignature(toolCall);
+      if (!signature) {
+        continue;
+      }
+      if ((previousCounts.get(signature) ?? 0) >= 2) {
+        return `The model repeated the same tool call several times, so LiMa Code stopped the loop before running it again: ${this.formatToolCallSignatureForDisplay(signature)}. Refine the prompt or use /continue if you want another pass.`;
+      }
+    }
+
+    return null;
+  }
+
+  private getToolCallSignature(toolCall: unknown): string | null {
+    if (!toolCall || typeof toolCall !== "object" || Array.isArray(toolCall)) {
+      return null;
+    }
+    const toolFunction = (toolCall as { function?: unknown }).function;
+    if (!toolFunction || typeof toolFunction !== "object" || Array.isArray(toolFunction)) {
+      return null;
+    }
+
+    const name = (toolFunction as { name?: unknown }).name;
+    const args = (toolFunction as { arguments?: unknown }).arguments;
+    if (typeof name !== "string" || !name.trim()) {
+      return null;
+    }
+    const normalizedArgs = this.normalizeToolCallArguments(typeof args === "string" ? args : "");
+    return `${name.trim()}:${normalizedArgs}`;
+  }
+
+  private normalizeToolCallArguments(args: string): string {
+    const trimmed = args.trim();
+    if (!trimmed) {
+      return "";
+    }
+    try {
+      return JSON.stringify(JSON.parse(trimmed));
+    } catch {
+      return trimmed;
+    }
+  }
+
+  private formatToolCallSignatureForDisplay(signature: string): string {
+    return signature.length > 160 ? `${signature.slice(0, 157)}...` : signature;
+  }
+
   private buildToolMessage(
     sessionId: string,
     toolCallId: string,
@@ -2147,6 +2447,66 @@ ${skillMd}
     }
 
     return openAIMessages;
+  }
+
+  private buildProviderOpenAIMessages(
+    messages: SessionMessage[],
+    thinkingEnabled: boolean,
+    model: string,
+    baseURL?: string
+  ): ChatCompletionMessageParam[] {
+    const openAIMessages = this.buildOpenAIMessages(messages, thinkingEnabled, model);
+    if (!isLiMaRouterBaseURL(baseURL)) {
+      return openAIMessages;
+    }
+    return openAIMessages.map((message) => this.toLiMaRouterSafeMessage(message));
+  }
+
+  private toLiMaRouterSafeMessage(message: ChatCompletionMessageParam): ChatCompletionMessageParam {
+    const content = (message as { content?: unknown }).content;
+    if (typeof content !== "string") {
+      return message;
+    }
+    const safeContent = this.toLiMaRouterSafeText(content);
+    if (safeContent === content) {
+      return message;
+    }
+    return {
+      ...message,
+      content: safeContent,
+    } as ChatCompletionMessageParam;
+  }
+
+  private toLiMaRouterSafeText(content: string): string {
+    if (content.includes("# Available Tools")) {
+      return LIMA_ROUTER_SAFE_SYSTEM_PROMPT;
+    }
+    if (content.includes("<agent-drift-guard-skill>") && content.includes("<plan-and-execute-skill>")) {
+      return LIMA_ROUTER_SAFE_DEFAULT_SKILL_PROMPT;
+    }
+    if (!this.isLikelyProjectInstructionBlob(content)) {
+      return content;
+    }
+    return `${LIMA_ROUTER_PROJECT_INSTRUCTION_SUMMARY}\n\nOriginal project instruction length: ${content.length} characters.`;
+  }
+
+  private isLikelyProjectInstructionBlob(content: string): boolean {
+    if (content.length < LIMA_ROUTER_PROJECT_INSTRUCTION_MIN_CHARS) {
+      return false;
+    }
+
+    const normalized = content.toLowerCase();
+    const projectMarkers = [
+      "milestone collaboration protocol",
+      "codegraph_start",
+      "codegraph_end",
+      "project-doc",
+      "agents.md",
+      "agent automatic closeout",
+      "vps",
+    ];
+
+    return projectMarkers.some((marker) => normalized.includes(marker));
   }
 
   private sessionMessageToOpenAIMessage(

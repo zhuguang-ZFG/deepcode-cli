@@ -7,9 +7,30 @@ import {
   type NotifyContext,
   type NotifySpawn,
 } from "../common/notify";
+import { buildLiMaRouterFetchHeaders } from "../common/openai-client";
 import { applyModelConfigSelection, resolveSettings, resolveSettingsSources } from "../settings";
 
 const TEST_PROCESS_ENV = {};
+
+test("buildLiMaRouterFetchHeaders strips OpenAI SDK fingerprint headers", () => {
+  const headers = buildLiMaRouterFetchHeaders({
+    authorization: "Bearer test-key",
+    "content-type": "application/json",
+    accept: "application/json",
+    "x-stainless-os": "Windows",
+    "x-stainless-lang": "js",
+    "openai-organization": "org-test",
+    "user-agent": "OpenAI/JS",
+  });
+
+  assert.equal(headers.get("authorization"), "Bearer test-key");
+  assert.equal(headers.get("content-type"), "application/json");
+  assert.equal(headers.get("accept"), "application/json");
+  assert.equal(headers.get("x-stainless-os"), null);
+  assert.equal(headers.get("x-stainless-lang"), null);
+  assert.equal(headers.get("openai-organization"), null);
+  assert.equal(headers.get("user-agent"), null);
+});
 
 test("resolveSettings reads top-level thinkingEnabled, notify, and webSearchTool", () => {
   const resolved = resolveSettings(

@@ -4,6 +4,7 @@ import * as path from "path";
 import OpenAI from "openai";
 import { Agent, fetch as undiciFetch } from "undici";
 import { resolveCurrentSettings } from "../ui/App";
+import { isLiMaRouterBaseURL } from "./openai-thinking";
 
 // Custom undici Agent with a 180-second keepAlive timeout.  The default
 // global fetch (undici) only keeps connections alive for 4 seconds, which
@@ -11,6 +12,9 @@ import { resolveCurrentSettings } from "../ui/App";
 // output between prompts.  By passing a dedicated Agent to undiciFetch we
 // keep connections reusable for three minutes after the last request.
 const keepAliveAgent = new Agent({ keepAliveTimeout: 180_000 });
+type OpenAIFetch = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
+type HeaderInput = ConstructorParameters<typeof Headers>[0];
+type UndiciFetchInit = NonNullable<Parameters<typeof undiciFetch>[1]>;
 
 // Module-level cache for the OpenAI client instance.  The client itself is
 // a stateless fetch wrapper, so it is safe to share across calls as long as
@@ -18,6 +22,32 @@ const keepAliveAgent = new Agent({ keepAliveTimeout: 180_000 });
 // settings are always read fresh from the project / user config files.
 let cachedOpenAI: OpenAI | null = null;
 let cachedOpenAIKey = "";
+
+export function buildLiMaRouterFetchHeaders(inputHeaders: HeaderInput | undefined): Headers {
+  const source = new Headers(inputHeaders);
+  const sanitized = new Headers();
+  for (const headerName of ["authorization", "content-type", "accept"]) {
+    const value = source.get(headerName);
+    if (value) {
+      sanitized.set(headerName, value);
+    }
+  }
+  return sanitized;
+}
+
+function createOpenAIFetch(baseURL: string): OpenAIFetch {
+  return (url, init) => {
+    const headers =
+      isLiMaRouterBaseURL(String(url)) || isLiMaRouterBaseURL(baseURL)
+        ? buildLiMaRouterFetchHeaders(init?.headers)
+        : init?.headers;
+    return undiciFetch(url as Parameters<typeof undiciFetch>[0], {
+      ...(init as UndiciFetchInit),
+      headers: headers as UndiciFetchInit["headers"],
+      dispatcher: keepAliveAgent,
+    }) as unknown as Promise<Response>;
+  };
+}
 
 export function createOpenAIClient(projectRoot: string = process.cwd()): {
   client: OpenAI | null;
@@ -66,8 +96,7 @@ export function createOpenAIClient(projectRoot: string = process.cwd()): {
   cachedOpenAI = new OpenAI({
     apiKey: settings.apiKey,
     baseURL: settings.baseURL || undefined,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    fetch: (url: any, init: any) => undiciFetch(url, { ...init, dispatcher: keepAliveAgent }),
+    fetch: createOpenAIFetch(settings.baseURL),
   });
   cachedOpenAIKey = cacheKey;
 

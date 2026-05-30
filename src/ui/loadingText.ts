@@ -33,11 +33,26 @@ export function buildLoadingText(input: LoadingTextInput): string {
 
   const elapsedSeconds = Math.floor(elapsedMs / 1000);
   if (progress.estimatedTokens <= 0) {
-    return `Thinking... (${elapsedSeconds}s) · waiting for first token`;
+    const waitLabel = progress.transport === "non_stream" ? "waiting for response" : "waiting for first token";
+    return `Thinking... (${elapsedSeconds}s) - ${waitLabel}${buildRequestTelemetryText(progress)}`;
   }
 
   const tokens = progress.formattedTokens || "0";
-  return `Thinking... (${elapsedSeconds}s) · ↓ ${tokens} tokens`;
+  return `Thinking... (${elapsedSeconds}s) - ${tokens} tokens`;
+}
+
+function buildRequestTelemetryText(progress: NonNullable<LoadingTextInput["progress"]>): string {
+  if (progress.transport !== "non_stream") {
+    return "";
+  }
+  const parts: string[] = [];
+  if (typeof progress.attempt === "number" && typeof progress.maxAttempts === "number" && progress.maxAttempts > 1) {
+    parts.push(`try ${progress.attempt}/${progress.maxAttempts}`);
+  }
+  if (typeof progress.timeoutMs === "number" && progress.timeoutMs > 0) {
+    parts.push(`timeout ${formatDuration(progress.timeoutMs)}`);
+  }
+  return parts.length > 0 ? ` (${parts.join(", ")})` : "";
 }
 
 function buildProcessLoadingText(processes: RunningProcesses | undefined, now: number): string | null {
@@ -57,6 +72,11 @@ function formatElapsedTime(startTimeIso: string, now: number): string {
   const startTime = parseTimestamp(startTimeIso);
   const elapsedMs = startTime === null ? 0 : Math.max(0, now - startTime);
   const elapsedSeconds = Math.floor(elapsedMs / 1000);
+  return formatDuration(elapsedSeconds * 1000);
+}
+
+function formatDuration(ms: number): string {
+  const elapsedSeconds = Math.max(0, Math.floor(ms / 1000));
   const minutes = Math.floor(elapsedSeconds / 60);
   const seconds = elapsedSeconds % 60;
   if (minutes > 0) {

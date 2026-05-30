@@ -1790,6 +1790,33 @@ test("buildOpenAIMessages ignores tool messages that appear before their assista
   assert.doesNotMatch(openAIMessages[1]?.content ?? "", /too early/);
 });
 
+test("SessionManager detects repeated tool-call loops before executing again", () => {
+  const manager = createSessionManager(process.cwd(), "machine-id-repeated-tool-loop");
+  const repeatedToolCall = {
+    id: "tool-1",
+    type: "function",
+    function: {
+      name: "read",
+      arguments: JSON.stringify({ file_path: "D:\\GIT\\AGENTS.md", offset: 51, limit: 100 }),
+    },
+  };
+  const messages: SessionMessage[] = [
+    {
+      ...buildTestMessage("assistant-1", "s1", "assistant", ""),
+      messageParams: { tool_calls: [{ ...repeatedToolCall, id: "tool-1" }] },
+    },
+    {
+      ...buildTestMessage("assistant-2", "s1", "assistant", ""),
+      messageParams: { tool_calls: [{ ...repeatedToolCall, id: "tool-2" }] },
+    },
+  ];
+
+  const message = (manager as any).getRepeatedToolCallLoopMessage(messages, [{ ...repeatedToolCall, id: "tool-3" }]);
+
+  assert.match(message ?? "", /repeated the same tool call/);
+  assert.match(message ?? "", /read:/);
+});
+
 test("SessionManager accumulates response usage while active tokens track the latest response", async () => {
   const workspace = createTempDir("deepcode-usage-workspace-");
   const home = createTempDir("deepcode-usage-home-");
@@ -2017,11 +2044,20 @@ test("SessionManager uses non-stream chat completions for LiMa Router", async ()
   setHomeDir(home);
 
   const requests: Array<Record<string, unknown>> = [];
+  const requestOptions: Array<Record<string, unknown> | undefined> = [];
+  const progressEvents: Array<{
+    phase: string;
+    transport?: string;
+    attempt?: number;
+    maxAttempts?: number;
+    timeoutMs?: number;
+  }> = [];
   const client = {
     chat: {
       completions: {
-        create: async (request: Record<string, unknown>) => {
+        create: async (request: Record<string, unknown>, options?: Record<string, unknown>) => {
           requests.push(request);
+          requestOptions.push(options);
           assert.equal(request.stream, false);
           assert.equal(request.stream_options, undefined);
           return {
@@ -2048,13 +2084,228 @@ test("SessionManager uses non-stream chat completions for LiMa Router", async ()
     getResolvedSettings: () => ({ model: "lima-1.3" }),
     renderMarkdown: (text) => text,
     onAssistantMessage: () => {},
+    onLlmStreamProgress: (progress) => {
+      progressEvents.push({
+        phase: progress.phase,
+        transport: progress.transport,
+        attempt: progress.attempt,
+        maxAttempts: progress.maxAttempts,
+        timeoutMs: progress.timeoutMs,
+      });
+    },
   });
 
   const sessionId = await manager.createSession({ text: "学习这个项目" });
 
   assert.equal(requests.length, 1);
+  assert.equal(requestOptions[0]?.timeout, 90000);
+  assert.equal(requestOptions[0]?.maxRetries, 1);
+  assert.deepEqual(
+    progressEvents.map((event) => [event.phase, event.transport, event.attempt, event.maxAttempts]),
+    [
+      ["start", "non_stream", undefined, undefined],
+      ["update", "non_stream", 1, 2],
+      ["end", "non_stream", undefined, undefined],
+    ]
+  );
   assert.equal(manager.getSession(sessionId)?.status, "completed");
   assert.equal(manager.getSession(sessionId)?.assistantReply, "lima router response");
+});
+
+test("SessionManager retries blocked LiMa Router requests without tools", async () => {
+  const workspace = createTempDir("deepcode-lima-blocked-fallback-workspace-");
+  const home = createTempDir("deepcode-lima-blocked-fallback-home-");
+  setHomeDir(home);
+
+  const requests: Array<Record<string, unknown>> = [];
+  const blockedError = new Error("403 Your request was blocked.") as Error & { status?: number };
+  blockedError.status = 403;
+  const client = {
+    chat: {
+      completions: {
+        create: async (request: Record<string, unknown>) => {
+          requests.push(request);
+          if (requests.length === 1) {
+            throw blockedError;
+          }
+          return {
+            choices: [{ message: { content: "fallback response" } }],
+            usage: {
+              prompt_tokens: 2,
+              completion_tokens: 3,
+              total_tokens: 5,
+            },
+          };
+        },
+      },
+    },
+  };
+
+  const manager = new SessionManager({
+    projectRoot: workspace,
+    createOpenAIClient: () => ({
+      client: client as any,
+      model: "lima-1.3",
+      baseURL: "https://chat.donglicao.com/v1",
+      thinkingEnabled: false,
+    }),
+    getResolvedSettings: () => ({ model: "lima-1.3" }),
+    renderMarkdown: (text) => text,
+    onAssistantMessage: () => {},
+  });
+
+  const sessionId = await manager.createSession({ text: "learn this project" });
+
+  assert.equal(requests.length, 2);
+  assert.ok(requests[0]?.tools);
+  assert.equal(requests[1]?.tools, undefined);
+  assert.match(JSON.stringify(requests[1]?.messages ?? []), /tool-enabled request was blocked/);
+  assert.equal(manager.getSession(sessionId)?.assistantReply, "fallback response");
+});
+
+test("SessionManager reports blocked LiMa Router requests locally when fallback is also blocked", async () => {
+  const workspace = createTempDir("deepcode-lima-blocked-local-workspace-");
+  const home = createTempDir("deepcode-lima-blocked-local-home-");
+  setHomeDir(home);
+
+  const requests: Array<Record<string, unknown>> = [];
+  const blockedError = new Error("403 Your request was blocked.") as Error & { status?: number };
+  blockedError.status = 403;
+  const client = {
+    chat: {
+      completions: {
+        create: async (request: Record<string, unknown>) => {
+          requests.push(request);
+          throw blockedError;
+        },
+      },
+    },
+  };
+
+  const manager = new SessionManager({
+    projectRoot: workspace,
+    createOpenAIClient: () => ({
+      client: client as any,
+      model: "lima-1.3",
+      baseURL: "https://chat.donglicao.com/v1",
+      thinkingEnabled: false,
+    }),
+    getResolvedSettings: () => ({ model: "lima-1.3" }),
+    renderMarkdown: (text) => text,
+    onAssistantMessage: () => {},
+  });
+
+  const sessionId = await manager.createSession({ text: "learn this project" });
+
+  assert.equal(requests.length, 2);
+  assert.equal(manager.getSession(sessionId)?.status, "completed");
+  assert.match(manager.getSession(sessionId)?.assistantReply ?? "", /upstream model\/provider admission/);
+});
+
+test("SessionManager summarizes large project instructions for LiMa Router requests", async () => {
+  const workspace = createTempDir("deepcode-lima-router-agents-workspace-");
+  const home = createTempDir("deepcode-lima-router-agents-home-");
+  setHomeDir(home);
+  fs.writeFileSync(
+    path.join(workspace, "AGENTS.md"),
+    [
+      "# AGENTS.md instructions for test",
+      "Milestone Collaboration Protocol",
+      "VPS deployment notes",
+      "RAW_PROJECT_RULE_MARKER_SHOULD_NOT_BE_SENT",
+      "repeat ".repeat(800),
+    ].join("\n"),
+    "utf8"
+  );
+
+  let capturedRequest: Record<string, unknown> | null = null;
+  const manager = new SessionManager({
+    projectRoot: workspace,
+    createOpenAIClient: () => ({
+      client: {
+        chat: {
+          completions: {
+            create: async (request: Record<string, unknown>) => {
+              capturedRequest = request;
+              return {
+                choices: [{ message: { content: "lima router response" } }],
+                usage: {
+                  prompt_tokens: 2,
+                  completion_tokens: 3,
+                  total_tokens: 5,
+                },
+              };
+            },
+          },
+        },
+      } as any,
+      model: "lima-1.3",
+      baseURL: "https://chat.donglicao.com/v1",
+      thinkingEnabled: false,
+    }),
+    getResolvedSettings: () => ({ model: "lima-1.3" }),
+    renderMarkdown: (text) => text,
+    onAssistantMessage: () => {},
+  });
+
+  await manager.createSession({ text: "hello" });
+
+  assert.ok(capturedRequest);
+  const renderedMessages = JSON.stringify((capturedRequest as Record<string, unknown>).messages ?? []);
+  assert.match(renderedMessages, /interactive coding CLI/);
+  assert.doesNotMatch(renderedMessages, /# Available Tools/);
+  assert.match(renderedMessages, /Default operating rules/);
+  assert.doesNotMatch(renderedMessages, /<agent-drift-guard-skill>/);
+  assert.match(renderedMessages, /summarized for LiMa Router compatibility/);
+  assert.doesNotMatch(renderedMessages, /RAW_PROJECT_RULE_MARKER_SHOULD_NOT_BE_SENT/);
+});
+
+test("SessionManager uses local skill matching for LiMa Router", async () => {
+  const workspace = createTempDir("deepcode-lima-local-skills-workspace-");
+
+  const manager = new SessionManager({
+    projectRoot: workspace,
+    createOpenAIClient: () => ({
+      client: {
+        chat: {
+          completions: {
+            create: async () => {
+              throw new Error("remote skill matching should not run for LiMa Router");
+            },
+          },
+        },
+      } as any,
+      model: "lima-1.3",
+      baseURL: "https://chat.donglicao.com/v1",
+      thinkingEnabled: false,
+    }),
+    getResolvedSettings: () => ({ model: "lima-1.3" }),
+    renderMarkdown: (text) => text,
+    onAssistantMessage: () => {},
+  });
+
+  const matches = await manager.identifyMatchingSkillNames(
+    [
+      {
+        name: "gitnexus-exploring",
+        path: "/skills/gitnexus-exploring/SKILL.md",
+        description: "Explore a codebase.",
+      },
+      {
+        name: "gitnexus-guide",
+        path: "/skills/gitnexus-guide/SKILL.md",
+        description: "Guide through a project.",
+      },
+      {
+        name: "diagnose",
+        path: "/skills/diagnose/SKILL.md",
+        description: "Debug failures.",
+      },
+    ],
+    "use gitnexus-exploring to inspect this project"
+  );
+
+  assert.deepEqual(matches, ["gitnexus-exploring"]);
 });
 
 test("SessionManager persists session and user message before skill matching is cancelled", async () => {
