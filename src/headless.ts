@@ -12,11 +12,52 @@ export type HeadlessResult = {
   content: string;
   sessionId: string;
   toolCalls: number;
+  telemetry: HeadlessTelemetry;
   error?: string;
+};
+
+export type HeadlessToolProtocol = "none" | "openai" | "anthropic" | "mixed";
+
+export type HeadlessModelCallTelemetry = {
+  attempt: number;
+  phase: "chat";
+  stream: boolean;
+  timeoutMs: number;
+  latencyMs: number;
+  ok: boolean;
+  status?: number;
+  error?: string;
+  contentChars: number;
+  toolCalls: number;
+  toolProtocol: HeadlessToolProtocol;
+};
+
+export type HeadlessOutcomeTelemetry = {
+  ok: boolean;
+  latencyMs: number;
+  status?: number;
+  error?: string;
+};
+
+export type HeadlessTelemetry = {
+  timeoutMs: number;
+  maxRetries: number;
+  retryCount: number;
+  modelCalls: HeadlessModelCallTelemetry[];
+  toolCapability: {
+    requested: boolean;
+    observed: boolean;
+    protocol: HeadlessToolProtocol;
+    toolCalls: number;
+    unsupportedReason?: string;
+  };
+  outcomeReport?: HeadlessOutcomeTelemetry;
 };
 
 const MAX_AGENT_ROUNDS = 20;
 const DEFAULT_MAX_TOKENS = 16384;
+const DEFAULT_MODEL_TIMEOUT_MS = 90_000;
+const DEFAULT_MODEL_RETRIES = 1;
 
 // Safety: commands that must never be executed
 const BLOCKED_COMMANDS =
@@ -33,6 +74,60 @@ type StreamingToolCall = {
   name: string;
   arguments: string;
 };
+
+type LiMaCallResult = {
+  content: string;
+  toolCalls: HeadlessToolCall[];
+  toolProtocol: HeadlessToolProtocol;
+};
+
+function createHeadlessTelemetry(): HeadlessTelemetry {
+  return {
+    timeoutMs: readPositiveIntEnv("LIMA_CODE_HEADLESS_TIMEOUT_MS", DEFAULT_MODEL_TIMEOUT_MS),
+    maxRetries: readPositiveIntEnv("LIMA_CODE_HEADLESS_RETRIES", DEFAULT_MODEL_RETRIES),
+    retryCount: 0,
+    modelCalls: [],
+    toolCapability: {
+      requested: false,
+      observed: false,
+      protocol: "none",
+      toolCalls: 0,
+    },
+  };
+}
+
+function readPositiveIntEnv(name: string, fallback: number): number {
+  const raw = process.env[name];
+  if (!raw) return fallback;
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function normalizeError(error: unknown): string {
+  if (error instanceof Error) {
+    return error.name && error.name !== "Error" ? `${error.name}: ${error.message}` : error.message;
+  }
+  return String(error);
+}
+
+function mergeToolProtocol(left: HeadlessToolProtocol, right: HeadlessToolProtocol): HeadlessToolProtocol {
+  if (left === "none") return right;
+  if (right === "none" || left === right) return left;
+  return "mixed";
+}
+
+function updateToolCapability(telemetry: HeadlessTelemetry, result: LiMaCallResult): void {
+  if (result.toolCalls.length > 0) {
+    telemetry.toolCapability.observed = true;
+    telemetry.toolCapability.protocol = mergeToolProtocol(telemetry.toolCapability.protocol, result.toolProtocol);
+    telemetry.toolCapability.toolCalls += result.toolCalls.length;
+    delete telemetry.toolCapability.unsupportedReason;
+    return;
+  }
+  if (!telemetry.toolCapability.observed) {
+    telemetry.toolCapability.unsupportedReason = "model_completed_without_tool_call";
+  }
+}
 
 /**
  * Validate a bash command against safety rules.
@@ -233,11 +328,8 @@ async function executeTool(name: string, args: Record<string, unknown>, projectR
 async function callLiMaWithTools(
   messages: ChatCompletionMessageParam[],
   projectRoot: string,
-  opts: { model?: string; maxTokens?: number; sessionId?: string } = {}
-): Promise<{
-  content: string;
-  toolCalls: HeadlessToolCall[];
-}> {
+  opts: { model?: string; maxTokens?: number; sessionId?: string; telemetry: HeadlessTelemetry }
+): Promise<LiMaCallResult> {
   const { resolveCurrentSettings } = await import("./ui/App");
   const settings = resolveCurrentSettings(projectRoot) as {
     env?: { BASE_URL?: string; API_KEY?: string };
@@ -247,6 +339,7 @@ async function callLiMaWithTools(
   const apiKey = settings.env?.API_KEY || "";
   const model = opts.model || settings.model || "lima";
   const maxTokens = opts.maxTokens || DEFAULT_MAX_TOKENS;
+  const stream = false;
 
   const body: Record<string, unknown> = {
     model,
@@ -255,38 +348,85 @@ async function callLiMaWithTools(
     temperature: 0,
     tools: buildToolDefinitions(),
     tool_choice: "auto",
-    stream: false,
+    stream,
   };
+  opts.telemetry.toolCapability.requested = true;
 
-  const response = await fetch(`${baseURL}/chat/completions`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-      "X-Session-ID": opts.sessionId || "",
-      "X-Project-Root": projectRoot,
-    },
-    body: JSON.stringify(body),
-  });
+  for (let attempt = 1; attempt <= opts.telemetry.maxRetries + 1; attempt++) {
+    const startedAt = Date.now();
+    try {
+      const response = await fetch(`${baseURL}/chat/completions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+          "X-Session-ID": opts.sessionId || "",
+          "X-Project-Root": projectRoot,
+        },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(opts.telemetry.timeoutMs),
+      });
 
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`LiMa Server ${response.status}: ${text.substring(0, 200)}`);
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`LiMa Server ${response.status}: ${text.substring(0, 200)}`);
+      }
+
+      const parsed = await parseLiMaResponse(response);
+      opts.telemetry.modelCalls.push({
+        attempt,
+        phase: "chat",
+        stream,
+        timeoutMs: opts.telemetry.timeoutMs,
+        latencyMs: Date.now() - startedAt,
+        ok: true,
+        status: response.status,
+        contentChars: parsed.content.length,
+        toolCalls: parsed.toolCalls.length,
+        toolProtocol: parsed.toolProtocol,
+      });
+      updateToolCapability(opts.telemetry, parsed);
+      return parsed;
+    } catch (error) {
+      opts.telemetry.modelCalls.push({
+        attempt,
+        phase: "chat",
+        stream,
+        timeoutMs: opts.telemetry.timeoutMs,
+        latencyMs: Date.now() - startedAt,
+        ok: false,
+        error: normalizeError(error),
+        contentChars: 0,
+        toolCalls: 0,
+        toolProtocol: "none",
+      });
+      if (attempt > opts.telemetry.maxRetries) {
+        throw error;
+      }
+      opts.telemetry.retryCount++;
+    }
   }
 
+  throw new Error("LiMa Server model call failed without an error");
+}
+
+async function parseLiMaResponse(response: Response): Promise<LiMaCallResult> {
   // Parse streaming SSE with tool_calls support
   let fullContent = "";
   let rawStreamText = "";
   const toolCallsMap: Record<string, StreamingToolCall> = {};
+  let toolProtocol: HeadlessToolProtocol = "none";
 
   const reader = response.body?.getReader();
   if (!reader) {
     const data = (await response.json()) as Record<string, unknown>;
     const choice = (data.choices as Array<{ message?: Record<string, unknown> }>)?.[0];
     const msg = choice?.message as Record<string, unknown> | undefined;
+    const toolCalls = parseToolCalls(msg?.tool_calls);
     return {
       content: (msg?.content as string) || "",
-      toolCalls: parseToolCalls(msg?.tool_calls),
+      toolCalls,
+      toolProtocol: toolCalls.length > 0 ? "openai" : "none",
     };
   }
 
@@ -329,6 +469,7 @@ async function callLiMaWithTools(
             if (typeof tc.id === "string") toolCallsMap[key].id = tc.id;
             if (typeof fn?.name === "string") toolCallsMap[key].name = fn.name;
             if (typeof fn?.arguments === "string") toolCallsMap[key].arguments += fn.arguments;
+            toolProtocol = mergeToolProtocol(toolProtocol, "openai");
           }
         }
 
@@ -346,6 +487,7 @@ async function callLiMaWithTools(
             name: anthropicToolStart.name,
             arguments: anthropicToolStart.input ? JSON.stringify(anthropicToolStart.input) : "",
           };
+          toolProtocol = mergeToolProtocol(toolProtocol, "anthropic");
         }
 
         const anthropicToolDelta = parseAnthropicToolDelta(chunk);
@@ -355,6 +497,7 @@ async function callLiMaWithTools(
             toolCallsMap[key] = { id: "", name: "", arguments: "" };
           }
           toolCallsMap[key].arguments += anthropicToolDelta.partialJson;
+          toolProtocol = mergeToolProtocol(toolProtocol, "anthropic");
         }
       } catch {
         continue;
@@ -378,10 +521,10 @@ async function callLiMaWithTools(
     }
   }
 
-  return { content: fullContent, toolCalls };
+  return { content: fullContent, toolCalls, toolProtocol };
 }
 
-function parseChatCompletionJson(text: string): { content: string; toolCalls: HeadlessToolCall[] } | null {
+function parseChatCompletionJson(text: string): LiMaCallResult | null {
   const trimmed = text.trim();
   if (!trimmed || trimmed.startsWith("data:")) {
     return null;
@@ -390,9 +533,11 @@ function parseChatCompletionJson(text: string): { content: string; toolCalls: He
     const data = JSON.parse(trimmed) as Record<string, unknown>;
     const choice = (data.choices as Array<{ message?: Record<string, unknown> }>)?.[0];
     const msg = choice?.message as Record<string, unknown> | undefined;
+    const toolCalls = parseToolCalls(msg?.tool_calls);
     return {
       content: (msg?.content as string) || "",
-      toolCalls: parseToolCalls(msg?.tool_calls),
+      toolCalls,
+      toolProtocol: toolCalls.length > 0 ? "openai" : "none",
     };
   } catch {
     return null;
@@ -469,7 +614,8 @@ async function reportOutcome(
   latencyMs: number,
   toolCalls: number,
   projectRoot: string
-): Promise<void> {
+): Promise<HeadlessOutcomeTelemetry> {
+  const startedAt = Date.now();
   try {
     const { resolveCurrentSettings } = await import("./ui/App");
     const settings = resolveCurrentSettings(projectRoot) as {
@@ -478,7 +624,7 @@ async function reportOutcome(
     const baseURL = settings.env?.BASE_URL || "https://chat.donglicao.com/v1";
     const apiKey = settings.env?.API_KEY || "";
 
-    await fetch(`${baseURL.replace("/v1", "")}/agent/learn/outcome`, {
+    const response = await fetch(`${baseURL.replace("/v1", "")}/agent/learn/outcome`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -494,8 +640,19 @@ async function reportOutcome(
       }),
       signal: AbortSignal.timeout(5000),
     });
-  } catch {
-    // Best-effort — don't fail the agent if reporting fails
+
+    return {
+      ok: response.ok,
+      status: response.status,
+      latencyMs: Date.now() - startedAt,
+      error: response.ok ? undefined : (await response.text()).slice(0, 200),
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      latencyMs: Date.now() - startedAt,
+      error: normalizeError(error),
+    };
   }
 }
 
@@ -521,7 +678,7 @@ function verifyResponseQuality(content: string): { ok: boolean; warning?: string
 async function agentLoop(
   userPrompt: string,
   projectRoot: string,
-  opts: { model?: string; maxTokens?: number; verbose?: boolean } = {}
+  opts: { model?: string; maxTokens?: number; verbose?: boolean; telemetry: HeadlessTelemetry }
 ): Promise<{ content: string; toolCalls: number; sessionId: string }> {
   const systemPrompt = await buildSystemPrompt(projectRoot);
   const sessionId = `hls-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -545,7 +702,14 @@ async function agentLoop(
       }
       // Report outcome to server for learning
       const startTime = Date.now();
-      await reportOutcome(sessionId, "cli-agent", quality.ok, Date.now() - startTime, totalToolCalls, projectRoot);
+      opts.telemetry.outcomeReport = await reportOutcome(
+        sessionId,
+        "cli-agent",
+        quality.ok,
+        Date.now() - startTime,
+        totalToolCalls,
+        projectRoot
+      );
       return { content, toolCalls: totalToolCalls, sessionId };
     }
 
@@ -637,6 +801,7 @@ export async function runHeadless(
   options: { json: boolean; projectRoot?: string; verbose?: boolean }
 ): Promise<HeadlessResult> {
   const projectRoot = options.projectRoot || process.cwd();
+  const telemetry = createHeadlessTelemetry();
 
   try {
     let content: string;
@@ -650,6 +815,7 @@ export async function runHeadless(
       // Agent loop with tool_use
       const result = await agentLoop(prompt, projectRoot, {
         verbose: options.verbose,
+        telemetry,
       });
       content = result.content;
       toolCalls = result.toolCalls;
@@ -663,6 +829,7 @@ export async function runHeadless(
       content,
       sessionId,
       toolCalls,
+      telemetry,
     };
 
     if (options.json) {
@@ -679,6 +846,7 @@ export async function runHeadless(
       content: "",
       sessionId: "",
       toolCalls: 0,
+      telemetry,
       error: msg,
     };
 
