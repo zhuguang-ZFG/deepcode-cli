@@ -16,13 +16,14 @@ import {
   isStale,
   type Checkpoint,
 } from "./checkpoint";
-import { probeCodebase, findingToTask, type ProbeFinding } from "./probe";
+import { probeCodebase, findingToTask, type ProbeFinding, type ProbeResult } from "./probe";
 import type { LiMaTaskRunnerConfig, LiMaTaskRunnerRequest } from "./task-runner";
 import { readWorkerStop } from "./worker-control";
 import { recordTaskFailure, shouldQuarantineTask } from "./failure-quarantine";
 import type { LiMaAgentTaskResult, LiMaAgentTaskRequest } from "./agent-task-types";
 import type { LiMaTelegramEvent } from "./telegram-notifier";
 import { createWorkerBudget } from "./worker-budget";
+import { execSync } from "child_process";
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
@@ -336,7 +337,6 @@ function buildReport(
 
 function getCurrentBranch(projectRoot: string): string {
   try {
-    const { execSync } = require("child_process") as { execSync: typeof import("child_process").execSync };
     return execSync("git rev-parse --abbrev-ref HEAD", {
       cwd: projectRoot,
       encoding: "utf8",

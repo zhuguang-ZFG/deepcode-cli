@@ -14,7 +14,7 @@ without scrolling through terminal output.
 import * as fs from "fs";
 import * as path from "path";
 import { execSync } from "child_process";
-import type { LiMaAgentTaskRequest, LiMaAgentTaskResult, LiMaAgentTaskTestResult } from "./agent-task-types";
+import type { LiMaAgentTaskRequest, LiMaAgentTaskTestResult } from "./agent-task-types";
 import { renderPromptContract, resolveTaskPromptContract } from "./prompt-contract";
 
 const ARTIFACTS_DIR = ".lima/artifacts";

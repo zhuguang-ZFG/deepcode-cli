@@ -22,6 +22,18 @@ const DEFAULT_MAX_TOKENS = 16384;
 const BLOCKED_COMMANDS =
   /^\s*(rm\s+-rf|mkfs|dd\s+if=|shutdown|reboot|halt|poweroff|sudo|su\s+|killall|pkill|nc\s|ncat|socat)\b/;
 
+type HeadlessToolCall = {
+  id: string;
+  name: string;
+  arguments: Record<string, unknown>;
+};
+
+type StreamingToolCall = {
+  id: string;
+  name: string;
+  arguments: string;
+};
+
 /**
  * Validate a bash command against safety rules.
  * Returns null if safe, or an error message if blocked.
@@ -224,7 +236,7 @@ async function callLiMaWithTools(
   opts: { model?: string; maxTokens?: number; sessionId?: string } = {}
 ): Promise<{
   content: string;
-  toolCalls: Array<{ id: string; name: string; arguments: Record<string, unknown> }>;
+  toolCalls: HeadlessToolCall[];
 }> {
   const { resolveCurrentSettings } = await import("./ui/App");
   const settings = resolveCurrentSettings(projectRoot) as {
@@ -243,7 +255,7 @@ async function callLiMaWithTools(
     temperature: 0,
     tools: buildToolDefinitions(),
     tool_choice: "auto",
-    stream: true,
+    stream: false,
   };
 
   const response = await fetch(`${baseURL}/chat/completions`, {
@@ -264,7 +276,8 @@ async function callLiMaWithTools(
 
   // Parse streaming SSE with tool_calls support
   let fullContent = "";
-  const toolCallsMap: Record<string, { id: string; name: string; arguments: string }> = {};
+  let rawStreamText = "";
+  const toolCallsMap: Record<string, StreamingToolCall> = {};
 
   const reader = response.body?.getReader();
   if (!reader) {
@@ -282,34 +295,66 @@ async function callLiMaWithTools(
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
-    buffer += decoder.decode(value, { stream: true });
+    const chunkText = decoder.decode(value, { stream: true });
+    rawStreamText += chunkText;
+    buffer += chunkText;
     const lines = buffer.split("\n");
     buffer = lines.pop() || "";
     for (const line of lines) {
-      if (!line.startsWith("data: ") || line === "data: [DONE]") continue;
+      if (!line.startsWith("data:")) continue;
+      const dataText = line.replace(/^data:\s?/, "");
+      if (dataText === "[DONE]") continue;
       try {
-        const chunk = JSON.parse(line.slice(6));
-        const delta = chunk.choices?.[0]?.delta;
-        if (delta?.content) {
+        const chunk = JSON.parse(dataText) as Record<string, unknown>;
+        const choice = Array.isArray(chunk.choices) ? chunk.choices[0] : null;
+        const delta = isRecord(choice) && isRecord(choice.delta) ? choice.delta : null;
+        if (typeof delta?.content === "string") {
           fullContent += delta.content;
           process.stderr.write(delta.content);
         }
         // Accumulate tool_calls from streaming deltas
-        if (delta?.tool_calls) {
+        if (Array.isArray(delta?.tool_calls)) {
           for (const tc of delta.tool_calls) {
-            const idx = tc.index ?? 0;
+            if (!isRecord(tc)) continue;
+            const idx = typeof tc.index === "number" ? tc.index : 0;
             const key = `tc_${idx}`;
             if (!toolCallsMap[key]) {
               toolCallsMap[key] = {
-                id: tc.id || "",
-                name: tc.function?.name || "",
+                id: typeof tc.id === "string" ? tc.id : "",
+                name: "",
                 arguments: "",
               };
             }
-            if (tc.id) toolCallsMap[key].id = tc.id;
-            if (tc.function?.name) toolCallsMap[key].name = tc.function.name;
-            if (tc.function?.arguments) toolCallsMap[key].arguments += tc.function.arguments;
+            const fn = isRecord(tc.function) ? tc.function : null;
+            if (typeof tc.id === "string") toolCallsMap[key].id = tc.id;
+            if (typeof fn?.name === "string") toolCallsMap[key].name = fn.name;
+            if (typeof fn?.arguments === "string") toolCallsMap[key].arguments += fn.arguments;
           }
+        }
+
+        const anthropicTextDelta = parseAnthropicTextDelta(chunk);
+        if (anthropicTextDelta) {
+          fullContent += anthropicTextDelta;
+          process.stderr.write(anthropicTextDelta);
+        }
+
+        const anthropicToolStart = parseAnthropicToolStart(chunk);
+        if (anthropicToolStart) {
+          const key = `ant_${anthropicToolStart.index}`;
+          toolCallsMap[key] = {
+            id: anthropicToolStart.id,
+            name: anthropicToolStart.name,
+            arguments: anthropicToolStart.input ? JSON.stringify(anthropicToolStart.input) : "",
+          };
+        }
+
+        const anthropicToolDelta = parseAnthropicToolDelta(chunk);
+        if (anthropicToolDelta) {
+          const key = `ant_${anthropicToolDelta.index}`;
+          if (!toolCallsMap[key]) {
+            toolCallsMap[key] = { id: "", name: "", arguments: "" };
+          }
+          toolCallsMap[key].arguments += anthropicToolDelta.partialJson;
         }
       } catch {
         continue;
@@ -323,22 +368,95 @@ async function callLiMaWithTools(
   const toolCalls = Object.values(toolCallsMap).map((tc) => ({
     id: tc.id,
     name: tc.name,
-    arguments: tc.arguments ? JSON.parse(tc.arguments) : {},
+    arguments: parseArgumentsJson(tc.arguments),
   }));
+
+  if (!fullContent && toolCalls.length === 0) {
+    const jsonResponse = parseChatCompletionJson(rawStreamText);
+    if (jsonResponse) {
+      return jsonResponse;
+    }
+  }
 
   return { content: fullContent, toolCalls };
 }
 
-function parseToolCalls(raw: unknown): Array<{ id: string; name: string; arguments: Record<string, unknown> }> {
+function parseChatCompletionJson(text: string): { content: string; toolCalls: HeadlessToolCall[] } | null {
+  const trimmed = text.trim();
+  if (!trimmed || trimmed.startsWith("data:")) {
+    return null;
+  }
+  try {
+    const data = JSON.parse(trimmed) as Record<string, unknown>;
+    const choice = (data.choices as Array<{ message?: Record<string, unknown> }>)?.[0];
+    const msg = choice?.message as Record<string, unknown> | undefined;
+    return {
+      content: (msg?.content as string) || "",
+      toolCalls: parseToolCalls(msg?.tool_calls),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function parseToolCalls(raw: unknown): HeadlessToolCall[] {
   if (!Array.isArray(raw)) return [];
   return raw.map((tc: Record<string, unknown>) => ({
     id: String(tc.id || ""),
     name: String((tc.function as Record<string, unknown>)?.name || ""),
     arguments:
       typeof (tc.function as Record<string, unknown>)?.arguments === "string"
-        ? JSON.parse((tc.function as Record<string, unknown>).arguments as string)
+        ? parseArgumentsJson((tc.function as Record<string, unknown>).arguments as string)
         : ((tc.function as Record<string, unknown>)?.arguments as Record<string, unknown>) || {},
   }));
+}
+
+function parseArgumentsJson(text: string): Record<string, unknown> {
+  if (!text.trim()) return {};
+  try {
+    const parsed = JSON.parse(text) as unknown;
+    return isRecord(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function parseAnthropicTextDelta(chunk: Record<string, unknown>): string {
+  if (chunk.type !== "content_block_delta") return "";
+  const delta = isRecord(chunk.delta) ? chunk.delta : null;
+  if (!delta || delta.type !== "text_delta") return "";
+  return typeof delta.text === "string" ? delta.text : "";
+}
+
+function parseAnthropicToolStart(
+  chunk: Record<string, unknown>
+): { index: number; id: string; name: string; input: Record<string, unknown> | null } | null {
+  if (chunk.type !== "content_block_start") return null;
+  const contentBlock = isRecord(chunk.content_block) ? chunk.content_block : null;
+  if (!contentBlock || contentBlock.type !== "tool_use") return null;
+  const index = typeof chunk.index === "number" ? chunk.index : 0;
+  return {
+    index,
+    id: typeof contentBlock.id === "string" ? contentBlock.id : "",
+    name: typeof contentBlock.name === "string" ? contentBlock.name : "",
+    input: isRecord(contentBlock.input) ? contentBlock.input : null,
+  };
+}
+
+function parseAnthropicToolDelta(chunk: Record<string, unknown>): { index: number; partialJson: string } | null {
+  if (chunk.type !== "content_block_delta") return null;
+  const delta = isRecord(chunk.delta) ? chunk.delta : null;
+  if (!delta || delta.type !== "input_json_delta") return null;
+  const partialJson = typeof delta.partial_json === "string" ? delta.partial_json : "";
+  if (!partialJson) return null;
+  return {
+    index: typeof chunk.index === "number" ? chunk.index : 0,
+    partialJson,
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 /**
@@ -543,7 +661,7 @@ export async function runHeadless(
     const result: HeadlessResult = {
       ok: true,
       content,
-      sessionId: "",
+      sessionId,
       toolCalls,
     };
 

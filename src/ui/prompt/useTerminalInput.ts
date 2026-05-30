@@ -240,7 +240,6 @@ export function useTerminalInput(
   options: { isActive?: boolean } = {}
 ): void {
   const { stdin, setRawMode: rawSetRawMode } = useStdin();
-  const setRawMode = process.stdin.isTTY ? rawSetRawMode : (_v: boolean) => {};
   const isActive = options.isActive ?? true;
   const handlerRef = useRef(inputHandler);
   handlerRef.current = inputHandler;
@@ -251,6 +250,7 @@ export function useTerminalInput(
   const pasteRef = useRef({ active: false, chunks: [] as string[] });
 
   useEffect(() => {
+    const setRawMode = process.stdin.isTTY ? rawSetRawMode : (_v: boolean) => {};
     if (!isActive) {
       pasteRef.current.active = false;
       pasteRef.current.chunks = [];
@@ -260,7 +260,7 @@ export function useTerminalInput(
     return () => {
       setRawMode(false);
     };
-  }, [isActive, setRawMode]);
+  }, [isActive, rawSetRawMode]);
 
   useEffect(() => {
     if (!isActive) {

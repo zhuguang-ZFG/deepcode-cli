@@ -112,11 +112,11 @@ if (headless) {
       projectRoot,
       verbose: args.includes("--verbose"),
     });
-    process.exit(result.ok ? 0 : 1);
+    process.exitCode = result.ok ? 0 : 1;
   }
 
   // Pipe mode: read from stdin
-  if (!process.stdin.isTTY) {
+  else if (!process.stdin.isTTY) {
     const chunks: Buffer[] = [];
     for await (const chunk of process.stdin) {
       chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
@@ -124,31 +124,36 @@ if (headless) {
     const input = Buffer.concat(chunks).toString("utf-8").trim();
     if (input) {
       const result = await runHeadless(input, { json: jsonOutput });
-      process.exit(result.ok ? 0 : 1);
+      process.exitCode = result.ok ? 0 : 1;
+    } else {
+      process.stderr.write("No input provided.\n");
+      process.exitCode = 1;
     }
-    process.stderr.write("No input provided.\n");
-    process.exit(1);
   }
 
   // Interactive headless: read prompts from stdin line by line
-  const readline = await import("readline");
-  const rl = readline.createInterface({ input: process.stdin });
-  process.stderr.write("LiMa Code (headless) — type a prompt, press Enter:\n");
-  for await (const line of rl) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed === "/exit") break;
-    await runHeadless(trimmed, { json: jsonOutput });
+  else {
+    const readline = await import("readline");
+    const rl = readline.createInterface({ input: process.stdin });
+    process.stderr.write("LiMa Code (headless) — type a prompt, press Enter:\n");
+    for await (const line of rl) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed === "/exit") break;
+      await runHeadless(trimmed, { json: jsonOutput });
+    }
+    process.exitCode = 0;
   }
-  process.exit(0);
 }
 
 // ── Human TUI mode ────────────────────────────────────────────────────────
-if (!process.stdin.isTTY && !process.env.LIMA_FORCE_TTY) {
+if (!headless && !process.stdin.isTTY && !process.env.LIMA_FORCE_TTY) {
   process.stderr.write("lima-code requires an interactive terminal (TTY). " + "Re-run from a real terminal session.\n");
   process.exit(1);
 }
 
-void main();
+if (!headless) {
+  void main();
+}
 
 async function main(): Promise<void> {
   const updatePromptResult = await promptForPendingUpdate(packageInfo);

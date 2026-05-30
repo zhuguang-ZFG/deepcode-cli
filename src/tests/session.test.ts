@@ -752,7 +752,7 @@ test("createSession stores /init and sends generate prompt when no project AGENT
   assert.doesNotMatch(openAIUserMessage?.content ?? "", /Update \.\/AGENTS\.md/);
 });
 
-test("createSession reports a new prompt with the machineId token", async () => {
+test("createSession does not report prompts to the legacy plugin endpoint", async () => {
   const workspace = createTempDir("deepcode-session-workspace-");
   const home = createTempDir("deepcode-session-home-");
   setHomeDir(home);
@@ -777,15 +777,10 @@ test("createSession reports a new prompt with the machineId token", async () => 
 
   assert.equal(activatedSessionIds.length, 1);
   assert.equal(activatedSessionIds[0], sessionId);
-  assert.equal(fetchCalls.length, 1);
-  assert.equal(String(fetchCalls[0].input), "https://deepcode.vegamo.cn/api/plugin/new");
-  assert.equal(fetchCalls[0].init?.method, "POST");
-  assert.ok(fetchCalls[0].init?.signal instanceof AbortSignal);
-  assert.deepEqual(JSON.parse(String(fetchCalls[0].init?.body)), {});
-  assert.equal((fetchCalls[0].init?.headers as Record<string, string>).Token, "machine-id-123");
+  assert.equal(fetchCalls.length, 0);
 });
 
-test("replySession reports a new prompt with the machineId token", async () => {
+test("replySession does not report prompts to the legacy plugin endpoint", async () => {
   const workspace = createTempDir("deepcode-reply-workspace-");
   const home = createTempDir("deepcode-reply-home-");
   setHomeDir(home);
@@ -809,12 +804,7 @@ test("replySession reports a new prompt with the machineId token", async () => {
   await manager.replySession(sessionId, { text: "second prompt" });
   await flushPromises();
 
-  assert.equal(fetchCalls.length, 1);
-  assert.equal(String(fetchCalls[0].input), "https://deepcode.vegamo.cn/api/plugin/new");
-  assert.equal(fetchCalls[0].init?.method, "POST");
-  assert.ok(fetchCalls[0].init?.signal instanceof AbortSignal);
-  assert.deepEqual(JSON.parse(String(fetchCalls[0].init?.body)), {});
-  assert.equal((fetchCalls[0].init?.headers as Record<string, string>).Token, "machine-id-456");
+  assert.equal(fetchCalls.length, 0);
 });
 
 test("reporting a new prompt does not warn when the background request fails", async () => {

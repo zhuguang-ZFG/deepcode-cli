@@ -13,7 +13,6 @@ import {
   writeReviewArtifacts,
   writeShipArtifacts,
   writeTestArtifacts,
-  type ArtifactBundle,
   type ContextSnapshot,
 } from "./artifact-bundle";
 import { buildLiMaTaskResult, parseChangedFilesFromGitNameOnly, truncateText } from "./result-builder";
