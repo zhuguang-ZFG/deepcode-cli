@@ -32,6 +32,10 @@ export function buildLoadingText(input: LoadingTextInput): string {
   }
 
   const elapsedSeconds = Math.floor(elapsedMs / 1000);
+  if (progress.estimatedTokens <= 0) {
+    return `Thinking... (${elapsedSeconds}s) · waiting for first token`;
+  }
+
   const tokens = progress.formattedTokens || "0";
   return `Thinking... (${elapsedSeconds}s) · ↓ ${tokens} tokens`;
 }

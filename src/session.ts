@@ -127,6 +127,9 @@ function getTotalTokens(usage: ModelUsage | null | undefined): number {
 
 export type SessionStatus = "failed" | "pending" | "processing" | "waiting_for_user" | "completed" | "interrupted";
 
+const EMPTY_ASSISTANT_RESPONSE_MESSAGE =
+  "LiMa Server returned an empty response. Try again or run /lima doctor; this usually means the selected backend timed out or produced no content.";
+
 export type ModelUsage = {
   prompt_tokens: number;
   completion_tokens: number;
@@ -1188,6 +1191,11 @@ ${skillMd}
         }
         // const html = content ? this.renderMarkdown(content) : "";
 
+        const emptyAssistantResponse = !content.trim() && !thinking?.trim() && !toolCalls && !refusal;
+        if (emptyAssistantResponse) {
+          content = EMPTY_ASSISTANT_RESPONSE_MESSAGE;
+        }
+
         if (this.isInterrupted(sessionId)) {
           return;
         }
@@ -1215,8 +1223,15 @@ ${skillMd}
           usage: accumulateUsage(entry.usage, responseUsage),
           usagePerModel: accumulateUsagePerModel(entry.usagePerModel, model, responseUsage),
           activeTokens: getTotalTokens(responseUsage),
-          status: refusal ? "failed" : waitingForUser ? "waiting_for_user" : toolCalls ? "processing" : "completed",
-          failReason: refusal ? refusal : entry.failReason,
+          status:
+            refusal || emptyAssistantResponse
+              ? "failed"
+              : waitingForUser
+                ? "waiting_for_user"
+                : toolCalls
+                  ? "processing"
+                  : "completed",
+          failReason: refusal ? refusal : emptyAssistantResponse ? EMPTY_ASSISTANT_RESPONSE_MESSAGE : entry.failReason,
           updateTime: new Date().toISOString(),
         }));
 

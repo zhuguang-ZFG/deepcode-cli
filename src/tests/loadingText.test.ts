@@ -63,7 +63,7 @@ test("buildLoadingText shows elapsed seconds and tokens once past the threshold"
   assert.equal(text, "Thinking... (5s) · ↓ 850 tokens");
 });
 
-test("buildLoadingText falls back to '0' when formattedTokens is missing", () => {
+test("buildLoadingText shows first-token wait when no stream text has arrived", () => {
   const startedAt = "2026-04-28T00:00:00.000Z";
   const now = Date.parse(startedAt) + 4_000;
   const text = buildLoadingText({
@@ -76,7 +76,7 @@ test("buildLoadingText falls back to '0' when formattedTokens is missing", () =>
     },
     now,
   });
-  assert.equal(text, "Thinking... (4s) · ↓ 0 tokens");
+  assert.equal(text, "Thinking... (4s) · waiting for first token");
 });
 
 test("buildLoadingText falls back to Thinking... when timestamp is unparseable", () => {

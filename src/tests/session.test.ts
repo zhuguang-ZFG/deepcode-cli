@@ -309,6 +309,26 @@ test("SessionManager keeps usagePerModel null until response usage is available"
   assert.equal(manager.getSession(sessionId)?.usagePerModel, null);
 });
 
+test("SessionManager surfaces empty assistant responses as visible failures", async () => {
+  const workspace = createTempDir("deepcode-empty-response-workspace-");
+  const home = createTempDir("deepcode-empty-response-home-");
+  setHomeDir(home);
+
+  const manager = createMockedClientSessionManager(workspace, [
+    {
+      choices: [{ message: { content: "" } }],
+      usage: { prompt_tokens: 1, completion_tokens: 0, total_tokens: 1 },
+    },
+  ]);
+
+  const sessionId = await manager.createSession({ text: "hello" });
+  const assistantMessage = manager.listSessionMessages(sessionId).find((message) => message.role === "assistant");
+
+  assert.equal(manager.getSession(sessionId)?.status, "failed");
+  assert.equal(assistantMessage?.visible, true);
+  assert.match(String(assistantMessage?.content), /empty response/);
+});
+
 test("SessionManager marks skills loaded from existing session messages", async () => {
   const workspace = createTempDir("deepcode-loaded-skills-workspace-");
   const home = createTempDir("deepcode-loaded-skills-home-");
