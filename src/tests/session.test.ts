@@ -2011,6 +2011,52 @@ test("SessionManager streams chat completions and counts reasoning progress", as
   assert.equal(progressEvents[2]?.formattedTokens, "3");
 });
 
+test("SessionManager uses non-stream chat completions for LiMa Router", async () => {
+  const workspace = createTempDir("deepcode-lima-non-stream-workspace-");
+  const home = createTempDir("deepcode-lima-non-stream-home-");
+  setHomeDir(home);
+
+  const requests: Array<Record<string, unknown>> = [];
+  const client = {
+    chat: {
+      completions: {
+        create: async (request: Record<string, unknown>) => {
+          requests.push(request);
+          assert.equal(request.stream, false);
+          assert.equal(request.stream_options, undefined);
+          return {
+            choices: [{ message: { content: "lima router response" } }],
+            usage: {
+              prompt_tokens: 2,
+              completion_tokens: 3,
+              total_tokens: 5,
+            },
+          };
+        },
+      },
+    },
+  };
+
+  const manager = new SessionManager({
+    projectRoot: workspace,
+    createOpenAIClient: () => ({
+      client: client as any,
+      model: "lima-1.3",
+      baseURL: "https://chat.donglicao.com/v1",
+      thinkingEnabled: false,
+    }),
+    getResolvedSettings: () => ({ model: "lima-1.3" }),
+    renderMarkdown: (text) => text,
+    onAssistantMessage: () => {},
+  });
+
+  const sessionId = await manager.createSession({ text: "学习这个项目" });
+
+  assert.equal(requests.length, 1);
+  assert.equal(manager.getSession(sessionId)?.status, "completed");
+  assert.equal(manager.getSession(sessionId)?.assistantReply, "lima router response");
+});
+
 test("SessionManager persists session and user message before skill matching is cancelled", async () => {
   const workspace = createTempDir("deepcode-skill-abort-workspace-");
   const home = createTempDir("deepcode-skill-abort-home-");

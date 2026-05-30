@@ -28,7 +28,7 @@ export function buildThinkingRequestOptions(
   };
 }
 
-function isLiMaRouterBaseURL(baseURL: string | undefined): boolean {
+export function isLiMaRouterBaseURL(baseURL: string | undefined): boolean {
   if (!baseURL) {
     return false;
   }

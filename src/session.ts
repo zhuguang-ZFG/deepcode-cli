@@ -7,7 +7,7 @@ import matter from "gray-matter";
 import ejs from "ejs";
 import type { ChatCompletionMessageParam, ChatCompletionContentPart } from "openai/resources/chat/completions";
 import { launchNotifyScript } from "./common/notify";
-import { buildThinkingRequestOptions } from "./common/openai-thinking";
+import { buildThinkingRequestOptions, isLiMaRouterBaseURL } from "./common/openai-thinking";
 import { DEEPSEEK_V4_MODELS, supportsMultimodal } from "./common/model-capabilities";
 import {
   getCompactPrompt,
@@ -394,6 +394,64 @@ export class SessionManager {
         include_usage: true,
       },
     };
+
+    if (isLiMaRouterBaseURL(debug?.baseURL)) {
+      const nonStreamRequest: Record<string, unknown> = {
+        ...request,
+        stream: false,
+      };
+      delete nonStreamRequest.stream_options;
+      try {
+        const response = await (
+          client.chat.completions.create as unknown as (
+            body: Record<string, unknown>,
+            options?: Record<string, unknown>
+          ) => Promise<unknown>
+        )(nonStreamRequest, options);
+        this.logChatCompletionDebug(debug, {
+          timestamp: new Date().toISOString(),
+          location: debug?.location ?? "SessionManager.createChatCompletionStream:lima-non-stream",
+          requestId,
+          sessionId,
+          model: typeof request.model === "string" ? request.model : undefined,
+          baseURL: debug?.baseURL,
+          durationMs: Date.now() - startedAtMs,
+          params: { ...debug?.params, options: summarizeCompletionOptions(options), transport: "non_stream" },
+          request: nonStreamRequest,
+          response,
+        });
+        return response as { choices?: Array<{ message?: Record<string, unknown> }>; usage?: ModelUsage | null };
+      } catch (error) {
+        this.logChatCompletionDebug(debug, {
+          timestamp: new Date().toISOString(),
+          location: debug?.location ?? "SessionManager.createChatCompletionStream:lima-non-stream",
+          requestId,
+          sessionId,
+          model: typeof request.model === "string" ? request.model : undefined,
+          baseURL: debug?.baseURL,
+          durationMs: Date.now() - startedAtMs,
+          params: { ...debug?.params, options: summarizeCompletionOptions(options), transport: "non_stream" },
+          request: nonStreamRequest,
+          error: normalizeDebugError(error),
+        });
+        logApiError({
+          timestamp: new Date().toISOString(),
+          location: "SessionManager.createChatCompletionStream:lima-non-stream",
+          requestId,
+          sessionId,
+          model: typeof request.model === "string" ? request.model : undefined,
+          error: {
+            name: error instanceof Error ? error.name : "UnknownError",
+            message: error instanceof Error ? error.message : String(error),
+            stack: error instanceof Error ? error.stack : undefined,
+          },
+          request: nonStreamRequest,
+        });
+        throw error;
+      } finally {
+        this.emitLlmStreamProgress(requestId, startedAt, estimatedTokens, "end", sessionId);
+      }
+    }
 
     let response: unknown;
     try {
