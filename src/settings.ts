@@ -1,4 +1,4 @@
-import { defaultsToThinkingMode } from "./common/model-capabilities";
+import { defaultsToThinkingMode, supportsThinkingMode } from "./common/model-capabilities";
 
 export type DeepcodingEnv = Record<string, string | undefined> & {
   MODEL?: string;
@@ -204,13 +204,16 @@ export function resolveSettingsSources(
     trimString(userEnv.MODEL) ||
     defaults.model;
 
-  const thinkingEnabled =
+  const configuredThinkingEnabled =
     parseBoolean(systemEnv.THINKING_ENABLED) ??
     parseBoolean(projectSettings?.thinkingEnabled) ??
     parseBoolean(projectEnv.THINKING_ENABLED) ??
     parseBoolean(userSettings?.thinkingEnabled) ??
-    parseBoolean(userEnv.THINKING_ENABLED) ??
-    defaultsToThinkingMode(model);
+    parseBoolean(userEnv.THINKING_ENABLED);
+
+  const thinkingEnabled = supportsThinkingMode(model)
+    ? (configuredThinkingEnabled ?? defaultsToThinkingMode(model))
+    : false;
 
   const reasoningEffort =
     resolveReasoningEffort(systemEnv.REASONING_EFFORT) ??

@@ -15,7 +15,7 @@ test("resolveSettings reads top-level thinkingEnabled, notify, and webSearchTool
   const resolved = resolveSettings(
     {
       env: {
-        MODEL: "deepseek-v3.2",
+        MODEL: "deepseek-v4-pro",
         BASE_URL: "https://example.com/v1",
         API_KEY: "sk-test",
       },
@@ -32,7 +32,7 @@ test("resolveSettings reads top-level thinkingEnabled, notify, and webSearchTool
     TEST_PROCESS_ENV
   );
 
-  assert.equal(resolved.model, "deepseek-v3.2");
+  assert.equal(resolved.model, "deepseek-v4-pro");
   assert.equal(resolved.baseURL, "https://example.com/v1");
   assert.equal(resolved.apiKey, "sk-test");
   assert.equal(resolved.thinkingEnabled, true);
@@ -64,6 +64,7 @@ test("resolveSettings reads THINKING_ENABLED, REASONING_EFFORT, and DEBUG_LOG_EN
   const resolved = resolveSettings(
     {
       env: {
+        MODEL: "deepseek-v4-pro",
         THINKING_ENABLED: "true",
         REASONING_EFFORT: "high",
         DEBUG_LOG_ENABLED: "true",
@@ -79,7 +80,7 @@ test("resolveSettings reads THINKING_ENABLED, REASONING_EFFORT, and DEBUG_LOG_EN
   assert.equal(resolved.thinkingEnabled, true);
   assert.equal(resolved.reasoningEffort, "high");
   assert.equal(resolved.debugLogEnabled, true);
-  assert.equal(resolved.model, "default-model");
+  assert.equal(resolved.model, "deepseek-v4-pro");
   assert.equal(resolved.baseURL, "https://default.example.com");
 });
 
@@ -287,6 +288,24 @@ test("resolveSettings allows explicit thinkingEnabled to override model defaults
         MODEL: "deepseek-v4-pro",
       },
       thinkingEnabled: false,
+    },
+    {
+      model: "default-model",
+      baseURL: "https://default.example.com",
+    },
+    TEST_PROCESS_ENV
+  );
+
+  assert.equal(resolved.thinkingEnabled, false);
+});
+
+test("resolveSettings disables stale thinking config for LiMa router model", () => {
+  const resolved = resolveSettings(
+    {
+      env: {
+        MODEL: "lima-1.3",
+      },
+      thinkingEnabled: true,
     },
     {
       model: "default-model",

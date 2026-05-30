@@ -11,6 +11,10 @@ export function defaultsToThinkingMode(model: string): boolean {
   return DEEPSEEK_V4_MODELS.has(model);
 }
 
+export function supportsThinkingMode(model: string): boolean {
+  return DEEPSEEK_V4_MODELS.has(model);
+}
+
 export function supportsMultimodal(model: string): boolean {
   return !NON_MULTIMODAL_MODELS.has(model.trim());
 }

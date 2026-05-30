@@ -34,3 +34,8 @@ test("buildThinkingRequestOptions accepts high reasoning effort", () => {
     extra_body: { reasoning_effort: "high" },
   });
 });
+
+test("buildThinkingRequestOptions omits thinking payload for LiMa router endpoints", () => {
+  assert.deepEqual(buildThinkingRequestOptions(true, "https://chat.donglicao.com/v1", "max"), {});
+  assert.deepEqual(buildThinkingRequestOptions(false, "https://chat.donglicao.com/v1", "max"), {});
+});
