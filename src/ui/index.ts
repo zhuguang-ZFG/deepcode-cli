@@ -55,6 +55,14 @@ export {
 } from "./askUserQuestion";
 export { readClipboardImage, type ClipboardImage } from "./clipboard";
 export { buildLoadingText, type LoadingTextInput } from "./loadingText";
+export {
+  buildRuntimeStatusViewModel,
+  formatRuntimeMetric,
+  selectRuntimeLayoutMode,
+  type RuntimeLayoutMode,
+  type RuntimeStatusItem,
+  type RuntimeStatusViewModel,
+} from "./runtimeStatus";
 export { renderMarkdown } from "./components/MessageView/markdown";
 export {
   EMPTY_BUFFER,

@@ -34,6 +34,8 @@ import { WelcomeScreen } from "./WelcomeScreen";
 import { AskUserQuestionPrompt } from "./AskUserQuestionPrompt";
 import { McpStatusList } from "./McpStatusList";
 import { ProcessStdoutView } from "./ProcessStdoutView";
+import { RuntimeStatusPanel, RUNTIME_STATUS_PANEL_WIDTH } from "./RuntimeStatusPanel";
+import { buildRuntimeStatusViewModel } from "./runtimeStatus";
 import {
   type AskUserQuestionAnswers,
   findPendingAskUserQuestion,
@@ -79,6 +81,7 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
   const [streamProgress, setStreamProgress] = useState<LlmStreamProgress | null>(null);
   const [runningProcesses, setRunningProcesses] = useState<SessionEntry["processes"]>(null);
   const [activeStatus, setActiveStatus] = useState<SessionStatus | null>(null);
+  const [activeEntry, setActiveEntry] = useState<SessionEntry | null>(null);
   const [dismissedQuestionIds, setDismissedQuestionIds] = useState<Set<string>>(() => new Set());
   const [isExiting, setIsExiting] = useState(false);
   const [showWelcome, setShowWelcome] = useState(true);
@@ -105,6 +108,7 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
         }
       },
       onSessionEntryUpdated: (entry) => {
+        setActiveEntry(entry);
         setStatusLine(buildStatusLine(entry));
         setRunningProcesses(entry.processes);
         setActiveStatus(entry.status);
@@ -215,6 +219,7 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
           setMessages([]);
           setStatusLine("");
           setErrorLine(null);
+          setActiveEntry(null);
           setRunningProcesses(null);
           setActiveStatus(null);
           setDismissedQuestionIds(new Set());
@@ -275,6 +280,7 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
           setBusy(false);
           setStreamProgress(null);
           setRunningProcesses(null);
+          setActiveEntry(null);
           limaCommandAbortRef.current = null;
         }
         return;
@@ -437,6 +443,7 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
       }, 0);
       const session = sessionManager.getSession(sessionId);
       setStatusLine(session ? buildStatusLine(session) : "");
+      setActiveEntry(session ?? null);
       setRunningProcesses(session?.processes ?? null);
       setActiveStatus(session?.status ?? null);
       await refreshSkills(sessionId);
@@ -594,6 +601,42 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- nowTick forces periodic recalculation for spinner animation
     [busy, streamProgress, runningProcesses, nowTick]
   );
+  const runtimeStatusNow = Date.now();
+  const runtimeStatus = useMemo(
+    () =>
+      buildRuntimeStatusViewModel({
+        entry: activeEntry,
+        progress: streamProgress,
+        processes: runningProcesses,
+        mcpStatuses,
+        settings: {
+          model: resolvedSettings.model,
+          thinkingEnabled: resolvedSettings.thinkingEnabled,
+          reasoningEffort: resolvedSettings.reasoningEffort,
+        },
+        errorLine,
+        now: runtimeStatusNow,
+        busy,
+        width: screenWidth,
+      }),
+    [
+      activeEntry,
+      busy,
+      errorLine,
+      mcpStatuses,
+      resolvedSettings.model,
+      resolvedSettings.reasoningEffort,
+      resolvedSettings.thinkingEnabled,
+      runtimeStatusNow,
+      runningProcesses,
+      screenWidth,
+      streamProgress,
+    ]
+  );
+  const promptScreenWidth =
+    runtimeStatus.visible && runtimeStatus.layoutMode === "wide"
+      ? Math.max(80, screenWidth - RUNTIME_STATUS_PANEL_WIDTH)
+      : screenWidth;
 
   const welcomeItem: SessionMessage = useMemo(
     () => ({
@@ -666,7 +709,7 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
           );
         }}
       </Static>
-      {statusLine ? (
+      {!runtimeStatus.visible && statusLine ? (
         <Box>
           <Text dimColor>{statusLine}</Text>
         </Box>
@@ -716,23 +759,36 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
           onCancel={handleQuestionCancel}
         />
       ) : isExiting ? null : (
-        <PromptInput
-          projectRoot={projectRoot}
-          screenWidth={screenWidth}
-          skills={skills}
-          modelConfig={resolvedSettings}
-          promptHistory={promptHistory}
-          busy={busy}
-          loadingText={loadingText}
-          runningProcesses={runningProcesses}
-          promptDraft={promptDraft}
-          onSubmit={handleSubmit}
-          onModelConfigChange={handleModelConfigChange}
-          onRawModeChange={handleRawModeChange}
-          onInterrupt={handleInterrupt}
-          onToggleProcessStdout={handleToggleProcessStdout}
-          placeholder="Type your message..."
-        />
+        <Box
+          flexDirection={runtimeStatus.visible && runtimeStatus.layoutMode === "wide" ? "row" : "column"}
+          width={screenWidth}
+        >
+          {runtimeStatus.visible && runtimeStatus.layoutMode !== "wide" ? (
+            <RuntimeStatusPanel viewModel={runtimeStatus} width={screenWidth} />
+          ) : null}
+          <Box width={promptScreenWidth}>
+            <PromptInput
+              projectRoot={projectRoot}
+              screenWidth={promptScreenWidth}
+              skills={skills}
+              modelConfig={resolvedSettings}
+              promptHistory={promptHistory}
+              busy={busy}
+              loadingText={loadingText}
+              runningProcesses={runningProcesses}
+              promptDraft={promptDraft}
+              onSubmit={handleSubmit}
+              onModelConfigChange={handleModelConfigChange}
+              onRawModeChange={handleRawModeChange}
+              onInterrupt={handleInterrupt}
+              onToggleProcessStdout={handleToggleProcessStdout}
+              placeholder="Type your message..."
+            />
+          </Box>
+          {runtimeStatus.visible && runtimeStatus.layoutMode === "wide" ? (
+            <RuntimeStatusPanel viewModel={runtimeStatus} width={RUNTIME_STATUS_PANEL_WIDTH} />
+          ) : null}
+        </Box>
       )}
     </Box>
   );
