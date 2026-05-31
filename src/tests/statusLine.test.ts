@@ -20,6 +20,7 @@ test("buildStatusLine includes token, cache, and request telemetry", () => {
         completion_tokens: 80,
         total_tokens: 1280,
         prompt_tokens_details: { cached_tokens: 900 },
+        prompt_cache_miss_tokens: 300,
         total_reqs: 2,
       },
       "deepseek-v4-pro": {
@@ -27,6 +28,7 @@ test("buildStatusLine includes token, cache, and request telemetry", () => {
         completion_tokens: 20,
         total_tokens: 120,
         prompt_cache_hit_tokens: 50,
+        prompt_cache_miss_tokens: 50,
         total_reqs: 1,
       },
     },
@@ -36,5 +38,5 @@ test("buildStatusLine includes token, cache, and request telemetry", () => {
     processes: null,
   } satisfies SessionEntry);
 
-  assert.equal(line, "status: completed · tokens: 1,280 · input: 1,300 · output: 100 · cache: 950 · reqs: 3");
+  assert.equal(line, "status: completed · tokens: 1,280 · input: 1,300 · output: 100 · cache: 950 (73.1%) · reqs: 3");
 });

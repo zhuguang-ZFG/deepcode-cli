@@ -165,8 +165,8 @@ ${skill.content}
 
 function getCurrentDateAndModelPrompt(model?: string): string {
   const date = new Date();
-  let prompt = `今天是${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日。随着对话的进行，时间在流逝。`;
-  prompt += model ? `\n当前LLM模型为${model}，对话中可通过/model命令切换模型。` : "";
+  let prompt = `今天是 ${date.getFullYear()} 年 ${date.getMonth() + 1} 月 ${date.getDate()} 日。随着对话进行，时间在流逝。`;
+  prompt += model ? `\n当前 LLM 模型为 ${model}，可通过 /model 命令切换模型。` : "";
   return prompt;
 }
 

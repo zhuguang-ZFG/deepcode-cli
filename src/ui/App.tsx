@@ -828,7 +828,7 @@ export function buildStatusLine(entry: SessionEntry): string {
     parts.push(`output: ${totals.completionTokens.toLocaleString("en-US")}`);
   }
   if (totals.cachedTokens > 0) {
-    parts.push(`cache: ${totals.cachedTokens.toLocaleString("en-US")}`);
+    parts.push(`cache: ${totals.cachedTokens.toLocaleString("en-US")}${formatCacheHitRate(totals)}`);
   }
   if (totals.totalReqs > 0) {
     parts.push(`reqs: ${totals.totalReqs.toLocaleString("en-US")}`);
@@ -843,12 +843,14 @@ function sumStatusUsage(usagePerModel: Record<string, ModelUsage> | null): {
   promptTokens: number;
   completionTokens: number;
   cachedTokens: number;
+  cacheMissTokens: number;
   totalReqs: number;
 } {
   const totals = {
     promptTokens: 0,
     completionTokens: 0,
     cachedTokens: 0,
+    cacheMissTokens: 0,
     totalReqs: 0,
   };
   if (!usagePerModel) {
@@ -858,9 +860,22 @@ function sumStatusUsage(usagePerModel: Record<string, ModelUsage> | null): {
     totals.promptTokens += numberField(usage.prompt_tokens);
     totals.completionTokens += numberField(usage.completion_tokens);
     totals.cachedTokens += extractCachedTokens(usage);
+    totals.cacheMissTokens += numberField(usage.prompt_cache_miss_tokens);
     totals.totalReqs += numberField(usage.total_reqs);
   }
   return totals;
+}
+
+function formatCacheHitRate(totals: { promptTokens: number; cachedTokens: number; cacheMissTokens: number }): string {
+  const denominator = totals.cacheMissTokens > 0 ? totals.cachedTokens + totals.cacheMissTokens : totals.promptTokens;
+  if (denominator <= 0) {
+    return "";
+  }
+  const hitRate = (totals.cachedTokens / denominator) * 100;
+  if (!Number.isFinite(hitRate) || hitRate <= 0) {
+    return "";
+  }
+  return ` (${hitRate.toFixed(1)}%)`;
 }
 
 function extractCachedTokens(usage: ModelUsage): number {

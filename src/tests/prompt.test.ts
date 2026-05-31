@@ -50,19 +50,26 @@ test("getDefaultSkillPrompt loads default skill templates in order", () => {
 
 test("getSystemPrompt does not include current date guidance", () => {
   const now = new Date();
-  const expected = `今天是${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日。随着对话的进行，时间在流逝。`;
+  const expected = `今天是 ${now.getFullYear()} 年 ${now.getMonth() + 1} 月 ${now.getDate()} 日。随着对话进行，时间在流逝。`;
   const prompt = getSystemPrompt("/tmp/project");
   assert.equal(prompt.includes(expected), false);
 });
 
 test("getRuntimeContext includes current date and model guidance", () => {
   const now = new Date();
-  const expectedDate = `今天是${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日。随着对话的进行，时间在流逝。`;
+  const expectedDate = `今天是 ${now.getFullYear()} 年 ${now.getMonth() + 1} 月 ${now.getDate()} 日。随着对话进行，时间在流逝。`;
   const prompt = getRuntimeContext("/tmp/project", "deepseek-v4-pro");
   assert.equal(prompt.includes(expectedDate), true);
-  assert.equal(prompt.includes("当前LLM模型为deepseek-v4-pro，对话中可通过/model命令切换模型。"), true);
+  assert.equal(prompt.includes("当前 LLM 模型为 deepseek-v4-pro，可通过 /model 命令切换模型。"), true);
   assert.equal(prompt.includes("# Local Workspace Environment"), true);
   assert.equal(prompt.includes('"root path": "/tmp/project"'), true);
+});
+
+test("getSystemPrompt uses readable LiMa Code base instructions", () => {
+  const prompt = getSystemPrompt("/tmp/project");
+  assert.equal(prompt.includes("你是名叫 LiMa Code 的交互式 CLI 工具"), true);
+  assert.equal(prompt.includes("浣犳槸"), false);
+  assert.equal(prompt.includes("閲嶈"), false);
 });
 
 test("getSystemPrompt renders Read docs for non-multimodal models", () => {
