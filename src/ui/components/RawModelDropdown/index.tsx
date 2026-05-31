@@ -42,7 +42,7 @@ const RawModelDropdown: React.FC<{
     <DropdownMenu
       title="Select mode"
       items={RAW_COMMAND_MODELS.map((model) => ({ ...model, selected: model.key === mode }))}
-      helpText="Space/Enter select mode · Esc to close"
+      helpText="Space/Enter 选择模式 · Esc 关闭"
       // onSelect={onSelect}
       activeColor="#229ac3"
       maxVisible={6}

@@ -44,7 +44,8 @@ test("getDefaultSkillPrompt loads default skill templates in order", () => {
   assert.notEqual(agentDriftIndex, -1);
   assert.notEqual(planIndex, -1);
   assert.equal(agentDriftIndex < planIndex, true);
-  assert.equal(prompt.includes("Use the skill documents below to assist the user:"), true);
+  assert.equal(prompt.includes("以下技能文档用于辅助完成当前任务："), true);
+  assert.equal(prompt.includes("Use the skill documents below to assist the user:"), false);
   assert.equal(prompt.includes('path="templates/skills/'), false);
 });
 

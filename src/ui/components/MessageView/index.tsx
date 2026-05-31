@@ -28,7 +28,7 @@ export function MessageView({ message, collapsed, width = 80 }: MessageViewProps
         <Box flexGrow={1}>
           <Text color="#229ac3">{text}</Text>
           {Array.isArray(message.contentParams) && message.contentParams.length > 0 ? (
-            <Text color="#229ac3">{`  📎 ${message.contentParams.length} image attachment(s)`}</Text>
+            <Text color="#229ac3">{`  📎 ${message.contentParams.length} 个图片附件`}</Text>
           ) : null}
         </Box>
       </Box>
@@ -44,13 +44,13 @@ export function MessageView({ message, collapsed, width = 80 }: MessageViewProps
       if (collapsed !== false) {
         return (
           <Box marginLeft={1} marginBottom={1} marginY={0}>
-            <StatusLine width={width} bulletColor="gray" name="Thinking" params={summary} />
+            <StatusLine width={width} bulletColor="gray" name="思考" params={summary} />
           </Box>
         );
       }
       return (
         <Box marginLeft={1} flexDirection="column" marginBottom={1} marginY={0}>
-          <StatusLine width={width} bulletColor="gray" name="Thinking" params={content ? "" : summary} />
+          <StatusLine width={width} bulletColor="gray" name="思考" params={content ? "" : summary} />
           <Box flexDirection="column" marginLeft={2}>
             {content ? <Text dimColor>{renderMarkdown(content)}</Text> : null}
           </Box>
@@ -109,7 +109,7 @@ export function MessageView({ message, collapsed, width = 80 }: MessageViewProps
     if (message.meta?.skill) {
       return (
         <Box marginY={0} marginLeft={1} marginBottom={1}>
-          <Text color="magenta">⚡ Loaded skill: {message.meta.skill.name}</Text>
+          <Text color="magenta">⚡ 已加载技能: {message.meta.skill.name}</Text>
         </Box>
       );
     }
@@ -117,7 +117,7 @@ export function MessageView({ message, collapsed, width = 80 }: MessageViewProps
       return (
         <Box marginY={0} marginLeft={1} marginBottom={1}>
           <Text dimColor italic>
-            (conversation summary inserted)
+            (已插入对话摘要)
           </Text>
         </Box>
       );

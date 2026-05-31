@@ -38,5 +38,5 @@ test("buildStatusLine includes token, cache, and request telemetry", () => {
     processes: null,
   } satisfies SessionEntry);
 
-  assert.equal(line, "status: completed · tokens: 1,280 · input: 1,300 · output: 100 · cache: 950 (73.1%) · reqs: 3");
+  assert.equal(line, "状态: completed · 本轮: 1,280 · 输入: 1,300 · 输出: 100 · 缓存: 950 (73.1%) · 请求: 3");
 });

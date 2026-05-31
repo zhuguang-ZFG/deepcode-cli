@@ -6,6 +6,7 @@ import { fileURLToPath } from "url";
 import { setShellIfWindows } from "./common/shell-utils";
 import { checkForNpmUpdate, promptForPendingUpdate, type PackageInfo } from "./updateCheck";
 import { AppContainer } from "./ui";
+import { buildCliHelpText } from "./cliHelp";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const args = process.argv.slice(2);
@@ -17,64 +18,7 @@ if (args.includes("--version") || args.includes("-v")) {
 }
 
 if (args.includes("--help") || args.includes("-h")) {
-  process.stdout.write(
-    [
-      "lima-code - LiMa Code CLI",
-      "",
-      "Usage:",
-      "  lima-code                             Launch the interactive TUI in the current directory",
-      "  lima-code -p <prompt>                 Launch with a pre-filled prompt",
-      "  lima-code --prompt <prompt>           Same as -p",
-      "  lima-code --headless -p <prompt>      Run prompt in headless mode (no TUI)",
-      "  lima-code --headless -p <p> --json    Headless + JSON output",
-      "  lima-code --headless                  Interactive headless (stdin line by line)",
-      "  lima-code --daemon                    Daemon mode: poll server for tasks",
-      "  lima-code --version                   Print the version",
-      "  lima-code --help                      Show this help",
-      "",
-      "Configuration:",
-      "  ~/.lima-code/settings.json   User-level API key, model, base URL",
-      "  ./.lima-code/settings.json   Project-level settings",
-      "  ~/.deepcode/settings.json    Legacy fallback (deprecated)",
-      "  ./.deepcode/settings.json    Legacy fallback (deprecated)",
-      "",
-      "Inside the TUI:",
-      "  enter            Send the prompt",
-      "  shift+enter      Insert a newline",
-      "  ctrl+v           Paste an image from clipboard",
-      "  esc              Interrupt the current model turn",
-      "  /                Open the commands menu",
-      "",
-      "Chat Commands:",
-      "  /skills          List available skills",
-      "  /model           Select model, thinking mode and effort",
-      "  /new             Start a fresh conversation",
-      "  /init            Initialize AGENTS.md for LLM instructions",
-      "  /resume          Pick a previous conversation to continue",
-      "  /continue        Continue the active conversation",
-      "  /undo            Restore code/conversation to a previous point",
-      "  /mcp             Show MCP server status and tools",
-      "  /raw             Toggle display mode (lite/normal/raw-scrollback)",
-      "",
-      "LiMa Worker Commands:",
-      "  /lima connect    Connect to LiMa server",
-      "  /lima status     Show worker status",
-      "  /lima start      Show project workbench",
-      "  /lima doctor     Check configuration",
-      "  /lima plan       Create implementation plan",
-      "  /lima test       Run tests",
-      "  /lima fix        Fix issues",
-      "  /lima next       Get next task",
-      "  /lima audit      Audit recent work",
-      "  /lima work       Auto-work loop",
-      "  /lima task       Get task details",
-      "  /lima review     Review code",
-      "  /lima ship       Ship/deploy",
-      "",
-      "  /exit            Quit",
-      "  ctrl+d twice     Quit",
-    ].join("\n") + "\n"
-  );
+  process.stdout.write(buildCliHelpText());
   process.exit(0);
 }
 
@@ -127,7 +71,7 @@ if (headless) {
       const result = await runHeadless(input, { json: jsonOutput });
       process.exitCode = result.ok ? 0 : 1;
     } else {
-      process.stderr.write("No input provided.\n");
+      process.stderr.write("未提供输入。\n");
       process.exitCode = 1;
     }
   }
@@ -136,7 +80,7 @@ if (headless) {
   else {
     const readline = await import("readline");
     const rl = readline.createInterface({ input: process.stdin });
-    process.stderr.write("LiMa Code (headless) — type a prompt, press Enter:\n");
+    process.stderr.write("LiMa Code（headless）— 输入提示词后按 Enter：\n");
     for await (const line of rl) {
       const trimmed = line.trim();
       if (!trimmed || trimmed === "/exit") break;
@@ -148,7 +92,7 @@ if (headless) {
 
 // ── Human TUI mode ────────────────────────────────────────────────────────
 if (!headless && !process.stdin.isTTY && !process.env.LIMA_FORCE_TTY) {
-  process.stderr.write("lima-code requires an interactive terminal (TTY). " + "Re-run from a real terminal session.\n");
+  process.stderr.write("lima-code 需要交互式终端（TTY）。请在真实终端会话中重新运行。\n");
   process.exit(1);
 }
 

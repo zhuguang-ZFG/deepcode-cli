@@ -372,7 +372,7 @@ export const PromptInput = React.memo(function PromptInput({
             }
           })
           .catch(() => {
-            setStatusMessage("Failed to read clipboard");
+            setStatusMessage("读取剪贴板失败");
           });
         return;
       }

@@ -2,8 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { buildLoadingText } from "../ui";
 
-test("buildLoadingText returns plain Thinking... when no progress", () => {
-  assert.equal(buildLoadingText({ progress: null, now: Date.now() }), "Thinking...");
+test("buildLoadingText returns plain Chinese thinking text when no progress", () => {
+  assert.equal(buildLoadingText({ progress: null, now: Date.now() }), "思考中...");
 });
 
 test("buildLoadingText shows running process elapsed time before thinking progress", () => {
@@ -31,7 +31,7 @@ test("buildLoadingText formats long-running process time with minutes", () => {
   assert.equal(buildLoadingText({ processes, progress: null, now }), "(1m5s) WebSearch: latest node release");
 });
 
-test("buildLoadingText returns plain Thinking... while elapsed below 3s", () => {
+test("buildLoadingText returns plain Chinese thinking text while elapsed below 3s", () => {
   const startedAt = "2026-04-28T00:00:00.000Z";
   const now = Date.parse(startedAt) + 1500;
   const text = buildLoadingText({
@@ -44,7 +44,7 @@ test("buildLoadingText returns plain Thinking... while elapsed below 3s", () => 
     },
     now,
   });
-  assert.equal(text, "Thinking...");
+  assert.equal(text, "思考中...");
 });
 
 test("buildLoadingText shows elapsed seconds and tokens once past the threshold", () => {
@@ -61,7 +61,7 @@ test("buildLoadingText shows elapsed seconds and tokens once past the threshold"
     },
     now,
   });
-  assert.equal(text, "Thinking... (5s) - 850 tokens [test-model]");
+  assert.equal(text, "思考中... (5s) · ↓ 850 token [test-model]");
 });
 
 test("buildLoadingText shows first-token wait when no stream text has arrived", () => {
@@ -77,7 +77,7 @@ test("buildLoadingText shows first-token wait when no stream text has arrived", 
     },
     now,
   });
-  assert.equal(text, "Thinking... (4s) - waiting for first token");
+  assert.equal(text, "思考中... (4s) · 等待首个 token");
 });
 
 test("buildLoadingText shows response wait for non-stream requests", () => {
@@ -95,7 +95,7 @@ test("buildLoadingText shows response wait for non-stream requests", () => {
     },
     now,
   });
-  assert.equal(text, "Thinking... (4s) - waiting for LiMa Router response [lima-1.3]");
+  assert.equal(text, "思考中... (4s) · 等待 LiMa Router 响应 [lima-1.3]");
 });
 
 test("buildLoadingText shows non-stream timeout and retry telemetry", () => {
@@ -116,10 +116,10 @@ test("buildLoadingText shows non-stream timeout and retry telemetry", () => {
     },
     now,
   });
-  assert.equal(text, "Thinking... (4s) - waiting for LiMa Router response [lima-1.3] (try 1/2, timeout 1m30s)");
+  assert.equal(text, "思考中... (4s) · 等待 LiMa Router 响应 [lima-1.3] (第 1/2 次, 超时 1m30s)");
 });
 
-test("buildLoadingText falls back to Thinking... when timestamp is unparseable", () => {
+test("buildLoadingText falls back to Chinese thinking text when timestamp is unparseable", () => {
   const text = buildLoadingText({
     progress: {
       requestId: "r",
@@ -130,5 +130,5 @@ test("buildLoadingText falls back to Thinking... when timestamp is unparseable",
     },
     now: Date.now(),
   });
-  assert.equal(text, "Thinking...");
+  assert.equal(text, "思考中...");
 });

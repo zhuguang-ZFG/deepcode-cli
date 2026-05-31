@@ -41,7 +41,7 @@ export type LiMaCommandParseResult = { ok: true; command: LiMaCommand } | { ok: 
 export function parseLiMaCommand(input: string): LiMaCommandParseResult {
   const parts = input.trim().split(/\s+/).filter(Boolean);
   if (parts[0] !== "/lima") {
-    return { ok: false, error: "LiMa command must start with /lima." };
+    return { ok: false, error: "LiMa 命令必须以 /lima 开头。" };
   }
 
   const subcommand = parts[1] ?? "";
@@ -98,7 +98,7 @@ export function parseLiMaCommand(input: string): LiMaCommandParseResult {
   if (subcommand === "task") {
     const taskId = parts[2] ?? "";
     if (!taskId) {
-      return { ok: false, error: "Usage: /lima task <task_id>" };
+      return { ok: false, error: "用法: /lima task <task_id>" };
     }
     return { ok: true, command: { kind: "task", taskId } };
   }
@@ -159,7 +159,7 @@ function parseDaemonCommand(args: string[]): LiMaCommandParseResult {
       },
     };
   }
-  return { ok: false, error: "Usage: /lima daemon status | stop | start [--max-minutes <n>]" };
+  return { ok: false, error: "用法: /lima daemon status | stop | start [--max-minutes <n>]" };
 }
 
 function parseWorkCommand(args: string[]): LiMaCommandParseResult {
@@ -169,7 +169,7 @@ function parseWorkCommand(args: string[]): LiMaCommandParseResult {
     return maxTasks;
   }
   if (mode === "loop" && !args.includes("--max-tasks")) {
-    return { ok: false, error: "Usage: /lima work --loop requires --max-tasks <n>." };
+    return { ok: false, error: "用法: /lima work --loop 需要 --max-tasks <n>。" };
   }
   const maxMinutes = readPositiveInt(args, "--max-minutes", 60);
   if (!maxMinutes.ok) {
@@ -184,7 +184,7 @@ function parseWorkCommand(args: string[]): LiMaCommandParseResult {
     return backoffMs;
   }
   if (maxTasks.value > 100) {
-    return { ok: false, error: "Usage: /lima work --max-tasks must be 100 or less." };
+    return { ok: false, error: "用法: /lima work --max-tasks 必须小于或等于 100。" };
   }
   return {
     ok: true,
@@ -208,7 +208,7 @@ function parseDroneCommand(args: string[]): LiMaCommandParseResult {
   if (!intervalMs.ok) return intervalMs;
   const allowMediumRisk = args.includes("--risk");
   if (maxTasks.value > 50) {
-    return { ok: false, error: "Usage: /lima drone --max-tasks must be 50 or less." };
+    return { ok: false, error: "用法: /lima drone --max-tasks 必须小于或等于 50。" };
   }
   return {
     ok: true,
@@ -230,14 +230,14 @@ function readPositiveInt(
   const index = args.indexOf(name);
   if (index < 0) {
     if (defaultValue === null) {
-      return { ok: false, error: `Usage: ${name} <n> is required.` };
+      return { ok: false, error: `用法: ${name} <n> 为必填。` };
     }
     return { ok: true, value: defaultValue };
   }
   const raw = args[index + 1] ?? "";
   const value = Number(raw);
   if (!Number.isInteger(value) || value <= 0) {
-    return { ok: false, error: `Usage: ${name} must be a positive integer.` };
+    return { ok: false, error: `用法: ${name} 必须是正整数。` };
   }
   return { ok: true, value };
 }
@@ -255,5 +255,5 @@ function readRestCommand(args: string[], defaultValue: string): string {
 }
 
 function usageText(): string {
-  return "Usage: /lima connect | /lima status | /lima start | /lima doctor | /lima plan | /lima test [--cmd <command>] | /lima next | /lima probe [--json] | /lima drone [--max-tasks <n>] [--risk] | /lima audit [--last <n>] | /lima daemon status | /lima daemon stop | /lima work --once | /lima work --loop --max-tasks <n> [--max-minutes <n>] | /lima task <task_id> | /lima review | /lima ship";
+  return "用法: /lima connect | /lima status | /lima start | /lima doctor | /lima plan | /lima test [--cmd <command>] | /lima next | /lima probe [--json] | /lima drone [--max-tasks <n>] [--risk] | /lima audit [--last <n>] | /lima daemon status | /lima daemon stop | /lima work --once | /lima work --loop --max-tasks <n> [--max-minutes <n>] | /lima task <task_id> | /lima review | /lima ship";
 }

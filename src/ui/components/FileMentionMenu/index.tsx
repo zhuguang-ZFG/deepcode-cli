@@ -85,8 +85,8 @@ const FileMentionMenu: React.FC<Props> = ({ open, width, token, items, onClose, 
     <DropdownMenu
       width={width}
       title="Mention File"
-      helpText="Enter/Tab insert · Esc close"
-      emptyText={token?.query ? "No matching files" : "Type after @ to search files"}
+      helpText="Enter/Tab 插入 · Esc 关闭"
+      emptyText={token?.query ? "没有匹配文件" : "在 @ 后输入以搜索文件"}
       items={items.map((item) => ({
         key: item.path,
         label: item.path,

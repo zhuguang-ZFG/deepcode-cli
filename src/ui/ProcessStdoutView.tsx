@@ -52,7 +52,7 @@ export const ProcessStdoutView = React.memo(function ProcessStdoutView({
           text += stdout || "(no output yet)";
         }
       } else {
-        text = "(no running processes)";
+        text = "(没有正在运行的进程)";
       }
       setStdoutText(text);
     };
@@ -81,7 +81,7 @@ export const ProcessStdoutView = React.memo(function ProcessStdoutView({
     const start = Math.max(0, lines.length - outputLineLimit - scrollOffset);
     const slice = lines.slice(start, start + outputLineLimit);
     if (lines.length > visibleLineLimit) {
-      slice.unshift(`... (${start} lines above · ↑/↓ to scroll · ${lines.length} total lines) ...`);
+      slice.unshift(`... (上方 ${start} 行 · ↑/↓ 滚动 · 共 ${lines.length} 行) ...`);
     }
     return slice;
   }, [lines, scrollOffset, visibleLineLimit]);
@@ -136,7 +136,7 @@ export const ProcessStdoutView = React.memo(function ProcessStdoutView({
         <Text bold>📟 Process Output</Text>
         <Text dimColor>{` (${formatTimeoutHint(
           timeoutProcess?.entry
-        )} · +/- adjust · Ctrl+O or Esc to close · ↑↓ PageUp/PageDown to scroll)`}</Text>
+        )} · +/- 调整 · Ctrl+O 或 Esc 关闭 · ↑↓ PageUp/PageDown 滚动)`}</Text>
       </Box>
       <Box flexDirection="column" paddingX={1} overflow="hidden">
         {visibleLines.map((line, index) => (
@@ -177,9 +177,9 @@ function formatTimeoutHint(entry?: SessionProcessEntry): string {
 
 function formatAdjustmentStatus(adjustment: BashTimeoutAdjustment | null): string {
   if (!adjustment) {
-    return "No adjustable Bash timeout";
+    return "没有可调整的 Bash timeout";
   }
-  return `Timeout set to ${formatDuration(adjustment.timeoutMs)}`;
+  return `Timeout 已设置为 ${formatDuration(adjustment.timeoutMs)}`;
 }
 
 function formatDuration(ms: number): string {

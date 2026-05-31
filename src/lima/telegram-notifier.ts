@@ -65,14 +65,14 @@ export function redactTelegramText(value: string): string {
 export function formatLiMaTelegramEvent(event: LiMaTelegramEvent): string {
   const lines = [`LiMa Code ${event.type}`];
   if (event.taskId) {
-    lines.push(`Task: ${event.taskId}`);
+    lines.push(`任务: ${event.taskId}`);
   }
   if (event.status) {
-    lines.push(`Status: ${event.status}`);
+    lines.push(`状态: ${event.status}`);
   }
   lines.push(event.summary);
   if (event.changedFiles && event.changedFiles.length > 0) {
-    lines.push(`Files: ${event.changedFiles.slice(0, 10).join(", ")}`);
+    lines.push(`文件: ${event.changedFiles.slice(0, 10).join(", ")}`);
   }
   return redactTelegramText(lines.join("\n"));
 }

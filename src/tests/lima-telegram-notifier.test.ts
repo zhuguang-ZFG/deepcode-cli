@@ -110,7 +110,7 @@ test("sendLiMaTelegramEvent posts to Telegram and hides token from result", asyn
   assert.equal(calls[0]?.url, `https://api.telegram.org/bot${botToken}/sendMessage`);
   assert.deepEqual(calls[0]?.body, {
     chat_id: "12345",
-    text: "LiMa Code task_started\nTask: task-1\nStatus: running\nstarting",
+    text: "LiMa Code task_started\n任务: task-1\n状态: running\nstarting",
   });
 });
 

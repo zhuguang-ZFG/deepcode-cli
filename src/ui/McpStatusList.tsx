@@ -41,15 +41,15 @@ export function McpStatusList({ statuses, onCancel, onReconnect }: Props): React
       <Box flexDirection="column" marginLeft={1} paddingX={1} gap={1} borderStyle="round" borderDimColor>
         <Box flexDirection="column">
           <Text color="#229ac3" bold>
-            Manage MCP servers
+            MCP 服务管理
           </Text>
-          <Text dimColor>0 servers</Text>
+          <Text dimColor>0 个服务</Text>
         </Box>
         <Box flexDirection="column">
-          <Text dimColor>No MCP servers configured.</Text>
-          <Text dimColor>Add MCP servers to your settings to get started.</Text>
+          <Text dimColor>尚未配置 MCP 服务。</Text>
+          <Text dimColor>请在设置中添加 MCP 服务后再使用。</Text>
         </Box>
-        <Text dimColor>Esc to close</Text>
+        <Text dimColor>Esc 关闭</Text>
       </Box>
     );
   }
@@ -191,23 +191,23 @@ function ServerListView({
         {/* Header row */}
         <Box paddingX={1} gap={1}>
           <Text bold color="#229ac3">
-            Manage MCP servers
+            MCP 服务管理
           </Text>
           <Box gap={1}>
             <Text dimColor>(</Text>
             <Text color="green" bold>
-              {readyCount} ready,
+              就绪 {readyCount},
             </Text>
             <Text color="yellow" bold>
-              {startingCount} starting,
+              启动中 {startingCount},
             </Text>
             {reconnectingCount > 0 && (
               <Text color="#ff9900" bold>
-                {reconnectingCount} reconnecting,
+                重连中 {reconnectingCount},
               </Text>
             )}
             <Text color="red" bold>
-              {failedCount} failed
+              失败 {failedCount}
             </Text>
             <Text dimColor>)</Text>
           </Box>
@@ -240,16 +240,16 @@ function ServerListView({
           })}
           {scrollOffset > 0 || scrollOffset + maxVisible < serverCount ? (
             <Box marginTop={1}>
-              {scrollOffset > 0 ? <Text dimColor>… {scrollOffset} servers above. </Text> : null}
+              {scrollOffset > 0 ? <Text dimColor>… 上方还有 {scrollOffset} 个服务。 </Text> : null}
               {scrollOffset + maxVisible < serverCount ? (
-                <Text dimColor>… {serverCount - scrollOffset - maxVisible} servers below.</Text>
+                <Text dimColor>… 下方还有 {serverCount - scrollOffset - maxVisible} 个服务。</Text>
               ) : null}
             </Box>
           ) : null}
         </Box>
         {/* Footer */}
         <Box paddingX={1}>
-          <Text dimColor>↑/↓ navigate · Enter view details · Esc close</Text>
+          <Text dimColor>↑/↓ 导航 · Enter 查看详情 · Esc 关闭</Text>
         </Box>
       </Box>
     </Box>
@@ -288,12 +288,12 @@ function ServerRow({
 
   const detail =
     status.status === "ready"
-      ? `Ready (${status.toolCount} tools, ${status.promptCount} prompts, ${status.resourceCount} resources)`
+      ? `就绪 (${status.toolCount} 个工具, ${status.promptCount} 个提示, ${status.resourceCount} 个资源)`
       : status.status === "failed"
-        ? `Failed`
+        ? `失败`
         : status.status === "reconnecting"
-          ? `Reconnecting${dots > 0 ? ".".repeat(dots) : "   "}`
-          : "Starting" + (dots > 0 ? ".".repeat(dots) : "   ");
+          ? `重连中${dots > 0 ? ".".repeat(dots) : "   "}`
+          : "启动中" + (dots > 0 ? ".".repeat(dots) : "   ");
 
   return (
     <Box flexDirection="column" marginBottom={1}>
@@ -343,7 +343,7 @@ function ServerDetailView({
   const allItems = useMemo(() => {
     const items: { type: string; name: string }[] = [];
     if (hasReconnect) {
-      items.push({ type: "action", name: "Reconnect" });
+      items.push({ type: "action", name: "重新连接" });
     }
     server.tools.forEach((tool) => items.push({ type: "tool", name: tool }));
     server.prompts.forEach((prompt) => items.push({ type: "prompt", name: prompt }));
@@ -448,14 +448,14 @@ function ServerDetailView({
           <Text bold color="#229ac3" wrap="truncate-end">
             {server.name}
           </Text>
-          <Text dimColor>— {server.status === "ready" ? "Details" : "Status"}</Text>
+          <Text dimColor>— {server.status === "ready" ? "详情" : "状态"}</Text>
         </Box>
         {/* Server info */}
         <Box paddingX={1} marginLeft={3}>
           <Text wrap="truncate-end">
             {server.status === "ready"
-              ? `${server.toolCount} tools, ${server.promptCount} prompts, ${server.resourceCount} resources`
-              : `Status: ${server.status}`}
+              ? `${server.toolCount} 个工具, ${server.promptCount} 个提示, ${server.resourceCount} 个资源`
+              : `状态: ${server.status}`}
           </Text>
         </Box>
         {/* Error for failed/reconnecting */}
@@ -487,7 +487,7 @@ function ServerDetailView({
           <Box paddingX={1} flexDirection="column">
             {visibleItems.length === 0 ? (
               <Box paddingY={1}>
-                <Text dimColor>No items available</Text>
+                <Text dimColor>没有可用条目</Text>
               </Box>
             ) : (
               visibleItems.map((item, idx) => {
@@ -500,9 +500,9 @@ function ServerDetailView({
           {visibleStart > 0 || visibleStart + maxVisible < totalItems ? (
             <Box marginTop={1} gap={1}>
               {totalItems - visibleStart - maxVisible > 0 ? <Text dimColor>▼</Text> : <Text> </Text>}
-              {visibleStart > 0 ? <Text dimColor>… {visibleStart} items above. </Text> : null}
+              {visibleStart > 0 ? <Text dimColor>… 上方还有 {visibleStart} 个项目。 </Text> : null}
               {totalItems - visibleStart - maxVisible > 0 ? (
-                <Text dimColor>… {totalItems - visibleStart - maxVisible} items below.</Text>
+                <Text dimColor>… 下方还有 {totalItems - visibleStart - maxVisible} 个项目。</Text>
               ) : null}
             </Box>
           ) : null}
@@ -511,10 +511,10 @@ function ServerDetailView({
         <Box paddingX={1}>
           <Text dimColor>
             {hasReconnect
-              ? "Enter to reconnect · Esc back · Ctrl+C close"
+              ? "Enter 重新连接 · Esc 返回 · Ctrl+C 关闭"
               : canScroll
-                ? "↑/↓ scroll · Space/Enter back · Esc back · Ctrl+C close"
-                : "Space/Enter back · Esc back · Ctrl+C close"}
+                ? "↑/↓ 滚动 · Space/Enter 返回 · Esc 返回 · Ctrl+C 关闭"
+                : "Space/Enter 返回 · Esc 返回 · Ctrl+C 关闭"}
           </Text>
         </Box>
       </Box>

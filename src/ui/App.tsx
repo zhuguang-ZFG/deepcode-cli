@@ -348,14 +348,14 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
       setResolvedSettings(next);
 
       if (!changed) {
-        return "Model settings unchanged";
+        return "模型设置未变化";
       }
 
       const activeSessionId = sessionManager.getActiveSessionId();
       const meta: MessageMeta = {
         isModelChange: true,
       };
-      const content = `/model\n└ Set model to ${selection.model} (${selection?.thinkingEnabled ? selection?.reasoningEffort : "no thinking"})`;
+      const content = `/model\n└ 已切换模型到 ${selection.model} (${formatThinkingMode(selection)})`;
 
       if (activeSessionId) {
         sessionManager.addSessionSystemMessage(activeSessionId, content, true, meta);
@@ -379,7 +379,7 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
         ]);
       }
 
-      return `Model settings updated: ${formatModelConfig(current)} → ${formatModelConfig(next)}`;
+      return `模型设置已更新：${formatModelConfig(current)} → ${formatModelConfig(next)}`;
     },
     [projectRoot, sessionManager]
   );
@@ -459,7 +459,7 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
         try {
           sessionManager.restoreSessionCode(sessionId, target.message.id);
         } catch (error) {
-          errors.push(`Code restore failed: ${error instanceof Error ? error.message : String(error)}`);
+          errors.push(`代码恢复失败: ${error instanceof Error ? error.message : String(error)}`);
         }
       }
 
@@ -468,7 +468,7 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
         sessionManager.restoreSessionConversation(sessionId, target.message.id);
         conversationRestored = true;
       } catch (error) {
-        errors.push(`Conversation restore failed: ${error instanceof Error ? error.message : String(error)}`);
+        errors.push(`会话恢复失败: ${error instanceof Error ? error.message : String(error)}`);
       }
 
       refreshSessionsList();
@@ -816,25 +816,25 @@ function isCurrentSessionEmpty(sessionManager: SessionManager): boolean {
 }
 
 export function buildStatusLine(entry: SessionEntry): string {
-  const parts: string[] = [`status: ${entry.status}`];
+  const parts: string[] = [`状态: ${entry.status}`];
   if (typeof entry.activeTokens === "number" && entry.activeTokens > 0) {
-    parts.push(`tokens: ${entry.activeTokens.toLocaleString("en-US")}`);
+    parts.push(`本轮: ${entry.activeTokens.toLocaleString("en-US")}`);
   }
   const totals = sumStatusUsage(entry.usagePerModel);
   if (totals.promptTokens > 0) {
-    parts.push(`input: ${totals.promptTokens.toLocaleString("en-US")}`);
+    parts.push(`输入: ${totals.promptTokens.toLocaleString("en-US")}`);
   }
   if (totals.completionTokens > 0) {
-    parts.push(`output: ${totals.completionTokens.toLocaleString("en-US")}`);
+    parts.push(`输出: ${totals.completionTokens.toLocaleString("en-US")}`);
   }
   if (totals.cachedTokens > 0) {
-    parts.push(`cache: ${totals.cachedTokens.toLocaleString("en-US")}${formatCacheHitRate(totals)}`);
+    parts.push(`缓存: ${totals.cachedTokens.toLocaleString("en-US")}${formatCacheHitRate(totals)}`);
   }
   if (totals.totalReqs > 0) {
-    parts.push(`reqs: ${totals.totalReqs.toLocaleString("en-US")}`);
+    parts.push(`请求: ${totals.totalReqs.toLocaleString("en-US")}`);
   }
   if (entry.failReason) {
-    parts.push(`fail: ${entry.failReason}`);
+    parts.push(`失败: ${entry.failReason}`);
   }
   return parts.join(" · ");
 }
@@ -995,9 +995,9 @@ function getExistingProjectSettingsPath(projectRoot: string): string | null {
 
 function formatThinkingMode(settings: Pick<ModelConfigSelection, "thinkingEnabled" | "reasoningEffort">): string {
   if (!settings.thinkingEnabled) {
-    return "no thinking";
+    return "关闭思考";
   }
-  return `thinking ${settings.reasoningEffort}`;
+  return `思考 ${settings.reasoningEffort}`;
 }
 
 function formatModelConfig(settings: ModelConfigSelection): string {

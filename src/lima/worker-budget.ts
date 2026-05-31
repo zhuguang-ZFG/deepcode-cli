@@ -17,12 +17,12 @@ export function createWorkerBudget(config: LiMaWorkerBudgetConfig) {
     },
     canStartNext(): LiMaWorkerBudgetDecision {
       if (taskCount >= config.maxTasks) {
-        return { ok: false, reason: `LiMa worker task budget reached: ${taskCount}/${config.maxTasks}` };
+        return { ok: false, reason: `LiMa worker 任务预算已达到: ${taskCount}/${config.maxTasks}` };
       }
 
       const elapsedMs = now() - startedAt;
       if (elapsedMs > config.maxMinutes * 60_000) {
-        return { ok: false, reason: `LiMa worker time budget reached: ${config.maxMinutes} minute(s)` };
+        return { ok: false, reason: `LiMa worker 时间预算已达到: ${config.maxMinutes} 分钟` };
       }
 
       return { ok: true };

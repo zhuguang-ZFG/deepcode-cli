@@ -58,16 +58,16 @@ export async function executeLiMaCommand(
 
   if (parsed.command.kind === "connect") {
     return client.isConfigured()
-      ? { ok: true, message: "LiMa Server connection is configured." }
-      : { ok: false, message: "LiMa Server is not configured. Set LIMA_CODE_SERVER_URL and LIMA_CODE_API_KEY." };
+      ? { ok: true, message: "LiMa Server 连接已配置。" }
+      : { ok: false, message: "LiMa Server 尚未配置。请设置 LIMA_CODE_SERVER_URL 和 LIMA_CODE_API_KEY。" };
   }
 
   if (parsed.command.kind === "status") {
     return {
       ok: true,
       message: [
-        `LiMa Code project: ${options.projectRoot}`,
-        `LiMa Server configured: ${client.isConfigured() ? "yes" : "no"}`,
+        `LiMa Code 项目: ${options.projectRoot}`,
+        `LiMa Server 配置: ${client.isConfigured() ? "已配置" : "未配置"}`,
       ].join("\n"),
     };
   }
@@ -133,14 +133,13 @@ export async function executeLiMaCommand(
   if (parsed.command.kind === "daemon") {
     if (parsed.command.action === "stop") {
       const marker = requestWorkerStop(options.projectRoot);
-      return { ok: true, message: `LiMa worker stop requested: ${marker}` };
+      return { ok: true, message: `已请求停止 LiMa worker: ${marker}` };
     }
     if (parsed.command.action === "start") {
       if (process.env.LIMA_CODE_WORKER_DAEMON !== "1") {
         return {
           ok: false,
-          message:
-            "Always-on daemon is gated. Set LIMA_CODE_WORKER_DAEMON=1 after operator approval, then retry /lima daemon start.",
+          message: "常驻 daemon 受开关保护。经操作者批准后设置 LIMA_CODE_WORKER_DAEMON=1，再重试 /lima daemon start。",
         };
       }
       return runWorkLoop({
@@ -166,7 +165,7 @@ export async function executeLiMaCommand(
     const stop = readWorkerStop(options.projectRoot);
     return {
       ok: true,
-      message: stop.stop ? `LiMa worker stop pending: ${stop.reason}` : "LiMa worker stop is not pending.",
+      message: stop.stop ? `LiMa worker 停止请求待处理: ${stop.reason}` : "LiMa worker 当前没有停止请求。",
     };
   }
 
@@ -176,7 +175,7 @@ export async function executeLiMaCommand(
       return { ok: false, message: fetched.error };
     }
     if (!fetched.value) {
-      return { ok: true, message: "No pending LiMa task is available." };
+      return { ok: true, message: "当前没有待处理的 LiMa 任务。" };
     }
     return runAndSubmitTask(fetched.value, options.projectRoot, client, runTask, writeAudit, notify, lifecycleHooks);
   }
@@ -219,17 +218,17 @@ function buildLocalReviewTask(projectRoot: string): LiMaTaskRunnerRequest {
 
 function formatLiMaStartWorkbench(projectRoot: string, serverConfigured: boolean): string {
   return [
-    "LiMa Code workbench",
-    `Project: ${projectRoot}`,
-    `LiMa Server configured: ${serverConfigured ? "yes" : "no"}`,
+    "LiMa Code 工作台",
+    `项目: ${projectRoot}`,
+    `LiMa Server 配置: ${serverConfigured ? "已配置" : "未配置"}`,
     "",
-    "Start here:",
+    "从这里开始:",
     "1. /lima doctor",
     "2. /lima review",
     '3. /lima test --cmd "npm run check"',
-    "4. Ask: 修复/审查/部署这个项目",
+    "4. 提问: 修复/审查/部署这个项目",
     "",
-    "Server tasks:",
+    "服务端任务:",
     "/lima next",
     "/lima work --once",
     "/lima work --loop --max-tasks <n>",
@@ -257,8 +256,8 @@ function buildLocalTestTask(projectRoot: string, command: string): LiMaTaskRunne
     task_id: "local-test",
     repo: projectRoot,
     branch: "local",
-    goal: "Run local verification command",
-    constraints: [`Command: ${command}`],
+    goal: "运行本地验证命令",
+    constraints: [`命令: ${command}`],
     allowed_tools: ["test"],
     max_runtime_sec: 600,
     mode: "test",
@@ -271,11 +270,8 @@ function buildLocalShipTask(projectRoot: string): LiMaTaskRunnerRequest {
     task_id: "local-ship",
     repo: projectRoot,
     branch: "local",
-    goal: "Ship readiness review for current git diff",
-    constraints: [
-      "Confirm changed files, verification evidence, rollback notes, and residual risks.",
-      "Do not deploy or push from this local readiness check.",
-    ],
+    goal: "审查当前 git diff 的交付就绪状态",
+    constraints: ["确认变更文件、验证证据、回滚说明和残余风险。", "不要从这个本地就绪检查中部署或推送。"],
     allowed_tools: ["git_diff"],
     max_runtime_sec: 300,
     mode: "ship",
@@ -286,13 +282,13 @@ function formatTaskResult(result: LiMaAgentTaskResult, submitted: boolean): LiMa
   const lines = [
     `LiMa task ${result.task_id}: ${result.status}`,
     result.summary,
-    submitted ? "Result submitted to LiMa Server." : "Result kept local.",
+    submitted ? "结果已提交到 LiMa Server。" : "结果保留在本地。",
   ];
   if (result.changed_files.length > 0) {
-    lines.push(`Changed files: ${result.changed_files.join(", ")}`);
+    lines.push(`变更文件: ${result.changed_files.join(", ")}`);
   }
   if (result.next_action) {
-    lines.push(`Next: ${result.next_action}`);
+    lines.push(`下一步: ${result.next_action}`);
   }
   return { ok: result.status !== "failed" && result.status !== "blocked", message: lines.join("\n") };
 }
@@ -320,7 +316,7 @@ async function runAndSubmitTask(
 
   const submitted = await client.submitResult(result);
   if (!submitted.ok) {
-    return { ok: false, message: `Task ${result.task_id} ran but result submission failed: ${submitted.error}` };
+    return { ok: false, message: `任务 ${result.task_id} 已运行，但结果提交失败: ${submitted.error}` };
   }
 
   await notifyBestEffort(notify, eventForTaskResult(result));
@@ -353,17 +349,17 @@ async function runWorkLoop(options: {
     if (stop.stop) {
       await notifyBestEffort(options.notify, {
         type: "work_stopped",
-        summary: `LiMa work stopped by marker: ${stop.reason}`,
+        summary: `LiMa work 因停止标记退出: ${stop.reason}`,
       });
-      return { ok: true, message: `LiMa work stopped by marker: ${stop.reason}` };
+      return { ok: true, message: `LiMa work 因停止标记退出: ${stop.reason}` };
     }
 
     if (options.signal?.aborted) {
       await notifyBestEffort(options.notify, {
         type: "work_stopped",
-        summary: `LiMa work aborted after ${processed} task(s).`,
+        summary: `LiMa work 在处理 ${processed} 个任务后被中断。`,
       });
-      return { ok: false, message: `LiMa work aborted after ${processed} task(s).` };
+      return { ok: false, message: `LiMa work 在处理 ${processed} 个任务后被中断。` };
     }
 
     const budgetDecision = budget.canStartNext();
@@ -374,7 +370,7 @@ async function runWorkLoop(options: {
       });
       return {
         ok: true,
-        message: [`LiMa work processed ${processed} task(s).`, ...taskLines, budgetDecision.reason].join("\n"),
+        message: [`LiMa work 已处理 ${processed} 个任务。`, ...taskLines, budgetDecision.reason].join("\n"),
       };
     }
 
@@ -383,21 +379,21 @@ async function runWorkLoop(options: {
       await waitAfterFailure(options.command.backoffMs, options.sleep, options.signal);
       await notifyBestEffort(options.notify, {
         type: "work_stopped",
-        summary: `LiMa work stopped after fetch error: ${fetched.error}`,
+        summary: `LiMa work 因拉取任务失败而停止: ${fetched.error}`,
       });
-      return { ok: false, message: `LiMa work stopped after fetch error: ${fetched.error}` };
+      return { ok: false, message: `LiMa work 因拉取任务失败而停止: ${fetched.error}` };
     }
     if (!fetched.value) {
       if (options.idleRetry) {
         await options.sleep(options.command.intervalMs, options.signal);
         continue;
       }
-      const prefix = processed > 0 ? `LiMa work processed ${processed} task(s). ` : "";
+      const prefix = processed > 0 ? `LiMa work 已处理 ${processed} 个任务。` : "";
       await notifyBestEffort(options.notify, {
         type: "work_stopped",
-        summary: `${prefix}No pending LiMa task is available.`,
+        summary: `${prefix}当前没有待处理的 LiMa 任务。`,
       });
-      return { ok: true, message: `${prefix}No pending LiMa task is available.` };
+      return { ok: true, message: `${prefix}当前没有待处理的 LiMa 任务。` };
     }
 
     const result = await runAndSubmitTask(
@@ -427,25 +423,25 @@ async function runWorkLoop(options: {
           return {
             ok: false,
             message: [
-              `LiMa work stopped after ${processed} task(s).`,
+              `LiMa work 在处理 ${processed} 个任务后停止。`,
               ...taskLines,
-              `Task ${fetched.value.task_id} reached quarantine threshold but Server update failed: ${quarantined.error}`,
+              `任务 ${fetched.value.task_id} 已达到隔离阈值，但 Server 更新失败: ${quarantined.error}`,
             ].join("\n"),
           };
         }
         return {
           ok: false,
           message: [
-            `LiMa work stopped after ${processed} task(s).`,
+            `LiMa work 在处理 ${processed} 个任务后停止。`,
             ...taskLines,
-            `Task ${fetched.value.task_id} quarantined after ${failure.failure_count} failure(s): ${quarantine.reason}`,
+            `任务 ${fetched.value.task_id} 在 ${failure.failure_count} 次失败后被隔离: ${quarantine.reason}`,
           ].join("\n"),
         };
       }
       await waitAfterFailure(options.command.backoffMs, options.sleep, options.signal);
       return {
         ok: false,
-        message: [`LiMa work stopped after ${processed} task(s).`, ...taskLines, result.message].join("\n"),
+        message: [`LiMa work 在处理 ${processed} 个任务后停止。`, ...taskLines, result.message].join("\n"),
       };
     }
 
@@ -455,7 +451,7 @@ async function runWorkLoop(options: {
     await options.sleep(options.command.intervalMs, options.signal);
   }
 
-  return { ok: true, message: [`LiMa work processed ${processed} task(s).`, ...taskLines].join("\n") };
+  return { ok: true, message: [`LiMa work 已处理 ${processed} 个任务。`, ...taskLines].join("\n") };
 }
 
 function firstLine(value: string): string {
@@ -534,7 +530,7 @@ async function waitAfterFailure(
 function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
     if (signal?.aborted) {
-      reject(new Error("LiMa work aborted."));
+      reject(new Error("LiMa work 已中断。"));
       return;
     }
     const timer = setTimeout(resolve, ms);
@@ -542,7 +538,7 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
       "abort",
       () => {
         clearTimeout(timer);
-        reject(new Error("LiMa work aborted."));
+        reject(new Error("LiMa work 已中断。"));
       },
       { once: true }
     );
@@ -560,10 +556,10 @@ async function runFixWorkflow(
   // Step 1: Claim a pending task
   const fetched = await client.fetchPendingTask();
   if (!fetched.ok) {
-    return { ok: false, message: `Failed to fetch task: ${fetched.error}` };
+    return { ok: false, message: `拉取任务失败: ${fetched.error}` };
   }
   if (!fetched.value) {
-    return { ok: true, message: "No pending LiMa task is available." };
+    return { ok: true, message: "当前没有待处理的 LiMa 任务。" };
   }
 
   const task = fetched.value;
@@ -599,22 +595,18 @@ async function runFixWorkflow(
   }
 
   const lines = [
-    `LiMa fix workflow prepared for task ${task.task_id}: ${task.goal}`,
-    `Artifact bundle: .lima/artifacts/${task.task_id}/`,
-    testResult
-      ? `Tests run: ${testResult.status === "succeeded" ? "ALL PASSED" : "FAILURES FOUND"}`
-      : "No test commands specified.",
-    planResult.artifacts.length > 0 ? `Plan files: ${planResult.artifacts.join(", ")}` : "Plan artifact written.",
+    `LiMa fix 工作流已为任务 ${task.task_id} 准备就绪: ${task.goal}`,
+    `产物目录: .lima/artifacts/${task.task_id}/`,
+    testResult ? `测试结果: ${testResult.status === "succeeded" ? "全部通过" : "发现失败"}` : "未指定测试命令。",
+    planResult.artifacts.length > 0 ? `计划文件: ${planResult.artifacts.join(", ")}` : "计划产物已写入。",
     "",
-    "Next steps:",
-    "1. Review plan.md and context.json",
-    "2. Fix the failing tests or implement the task",
-    testCommands.length > 0 ? `3. Verify: /lima test --cmd "${testCommands[0]}"` : "",
-    testCommands.length > 1 ? `   ...repeat for: ${testCommands.slice(1).join(", ")}` : "",
-    `4. Ship when ready: /lima ship (this submits the result)`,
-    testResult && testResult.status !== "succeeded"
-      ? "\nHint: Check tests.json in the artifact directory to see what failed."
-      : "",
+    "下一步:",
+    "1. 审查 plan.md 和 context.json",
+    "2. 修复失败测试或实现任务",
+    testCommands.length > 0 ? `3. 验证: /lima test --cmd "${testCommands[0]}"` : "",
+    testCommands.length > 1 ? `   ...其余命令: ${testCommands.slice(1).join(", ")}` : "",
+    `4. 准备好后交付: /lima ship（会提交结果）`,
+    testResult && testResult.status !== "succeeded" ? "\n提示: 查看产物目录中的 tests.json 了解失败详情。" : "",
   ]
     .filter(Boolean)
     .join("\n");
@@ -656,10 +648,10 @@ async function runDroneMode(
   );
 
   const lines = [
-    `Drone completed in ${(report.durationMs / 1000).toFixed(1)}s`,
-    `Tasks: ${report.tasksSucceeded}/${report.tasksAttempted} succeeded, ${report.tasksFailed} failed`,
-    `Findings: ${report.findingsResolved} resolved, ${report.findingsRemaining} remaining`,
-    report.checkpointUsed ? "Used checkpoint recovery" : "",
+    `Drone 已完成，用时 ${(report.durationMs / 1000).toFixed(1)}s`,
+    `任务: ${report.tasksSucceeded}/${report.tasksAttempted} 成功，${report.tasksFailed} 失败`,
+    `发现项: ${report.findingsResolved} 已解决，${report.findingsRemaining} 剩余`,
+    report.checkpointUsed ? "已使用 checkpoint 恢复" : "",
     "",
     ...report.messages,
   ]

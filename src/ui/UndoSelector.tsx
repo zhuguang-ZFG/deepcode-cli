@@ -82,8 +82,8 @@ export function UndoSelector({ targets, onSelect, onCancel }: Props): React.Reac
   if (targets.length === 0) {
     return (
       <Box flexDirection="column" marginTop={1}>
-        <Text color="yellow">Nothing to undo yet.</Text>
-        <Text dimColor>Press Esc to go back.</Text>
+        <Text color="yellow">暂无可撤销内容。</Text>
+        <Text dimColor>按 Esc 返回。</Text>
       </Box>
     );
   }
@@ -100,9 +100,9 @@ export function UndoSelector({ targets, onSelect, onCancel }: Props): React.Reac
       <Box flexDirection="column" borderStyle="round" borderDimColor flexGrow={1} overflow="hidden">
         <Box paddingX={1}>
           <Text bold color="cyanBright">
-            Undo
+            撤销
           </Text>
-          <Text dimColor> restore to the point before a prompt</Text>
+          <Text dimColor> 恢复到某次提示词之前</Text>
         </Box>
         {phase === "message" ? (
           <Box
@@ -129,7 +129,7 @@ export function UndoSelector({ targets, onSelect, onCancel }: Props): React.Reac
                     </Text>
                     <Text dimColor>
                       {formatTimestamp(target.message.createTime)}
-                      {target.canRestoreCode ? " · code checkpoint available" : " · conversation only"}
+                      {target.canRestoreCode ? " · 可恢复代码 checkpoint" : " · 仅会话"}
                     </Text>
                   </Box>
                 </Box>
@@ -149,30 +149,26 @@ export function UndoSelector({ targets, onSelect, onCancel }: Props): React.Reac
             paddingX={1}
             overflow="hidden"
           >
-            <Text dimColor>Selected prompt:</Text>
+            <Text dimColor>已选提示词:</Text>
             <Text>{formatUndoMessage(selectedTarget?.message.content ?? "")}</Text>
             <Box marginTop={1} flexDirection="column">
               <Text color={modeIndex === 0 ? "cyanBright" : undefined}>
-                {modeIndex === 0 ? "> " : "  "}Restore code and conversation
+                {modeIndex === 0 ? "> " : "  "}恢复代码和会话
               </Text>
               <Text dimColor>
                 {"  "}
                 {selectedTarget?.canRestoreCode
-                  ? "Restore files from the recorded Git checkpoint, then fork the conversation."
-                  : "No code checkpoint is recorded for this prompt."}
+                  ? "从记录的 Git checkpoint 恢复文件，然后分叉会话。"
+                  : "这条提示词没有记录代码 checkpoint。"}
               </Text>
-              <Text color={modeIndex === 1 ? "cyanBright" : undefined}>
-                {modeIndex === 1 ? "> " : "  "}Restore conversation
-              </Text>
-              <Text dimColor>{"  "}Fork the conversation without changing files.</Text>
+              <Text color={modeIndex === 1 ? "cyanBright" : undefined}>{modeIndex === 1 ? "> " : "  "}仅恢复会话</Text>
+              <Text dimColor>{"  "}分叉会话，不改动文件。</Text>
             </Box>
           </Box>
         )}
         <Box>
           <Text dimColor>
-            {phase === "message"
-              ? "↑/↓ navigate · Enter choose · Esc cancel"
-              : "↑/↓ choose restore mode · Enter restore · Esc back"}
+            {phase === "message" ? "↑/↓ 导航 · Enter 选择 · Esc 取消" : "↑/↓ 选择恢复模式 · Enter 恢复 · Esc 返回"}
           </Text>
         </Box>
       </Box>
@@ -181,7 +177,7 @@ export function UndoSelector({ targets, onSelect, onCancel }: Props): React.Reac
 }
 
 function formatUndoMessage(content: unknown): string {
-  const text = typeof content === "string" && content.trim() ? content.trim() : "(empty message)";
+  const text = typeof content === "string" && content.trim() ? content.trim() : "(空消息)";
   const singleLine = text.replace(/\r?\n/g, " ").replace(/\s+/g, " ");
   return singleLine.length > 90 ? `${singleLine.slice(0, 89)}…` : singleLine;
 }

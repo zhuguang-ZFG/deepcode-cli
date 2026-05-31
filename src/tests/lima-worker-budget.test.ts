@@ -17,7 +17,7 @@ test("worker budget stops at max tasks", () => {
   const result = budget.canStartNext();
 
   assert.equal(result.ok, false);
-  assert.match(result.ok ? "" : result.reason, /task budget/);
+  assert.match(result.ok ? "" : result.reason, /任务预算/);
 });
 
 test("worker budget stops at max minutes", () => {
@@ -28,5 +28,5 @@ test("worker budget stops at max minutes", () => {
   const result = budget.canStartNext();
 
   assert.equal(result.ok, false);
-  assert.match(result.ok ? "" : result.reason, /time budget/);
+  assert.match(result.ok ? "" : result.reason, /时间预算/);
 });

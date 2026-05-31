@@ -156,8 +156,8 @@ export function SessionList({ sessions, onSelect, onCancel }: Props): React.Reac
   if (sessions.length === 0) {
     return (
       <Box flexDirection="column">
-        <Text color="yellow">No previous sessions found.</Text>
-        <Text dimColor>Press Esc to go back.</Text>
+        <Text color="yellow">没有历史会话。</Text>
+        <Text dimColor>按 Esc 返回。</Text>
       </Box>
     );
   }
@@ -176,17 +176,16 @@ export function SessionList({ sessions, onSelect, onCancel }: Props): React.Reac
         <Box paddingX={1} flexDirection="column">
           <Box>
             <Text bold color="cyanBright">
-              Resume a session
+              继续会话
             </Text>
             <Text bold color="#229ac3">
               {" "}
-              ({sessions.length} total
-              {hasActiveSearch ? `, ${filteredSessions.length} matched` : ""})
+              (共 {sessions.length} 个{hasActiveSearch ? `, 匹配 ${filteredSessions.length} 个` : ""})
             </Text>
           </Box>
           {/* Search bar */}
           <Box marginTop={hasActiveSearch || searchQuery ? 0 : 0}>
-            <Text dimColor>{searchQuery ? `Search: ${searchQuery}` : "Type to search\u2026"}</Text>
+            <Text dimColor>{searchQuery ? `搜索: ${searchQuery}` : "输入以搜索..."}</Text>
             {searchQuery ? <Text bold>|</Text> : null}
           </Box>
         </Box>
@@ -206,7 +205,7 @@ export function SessionList({ sessions, onSelect, onCancel }: Props): React.Reac
         >
           {filteredSessions.length === 0 ? (
             <Box paddingY={1}>
-              <Text color="yellow">No sessions match "{searchQuery}".</Text>
+              <Text color="yellow">没有匹配 "{searchQuery}" 的会话。</Text>
             </Box>
           ) : (
             visibleSessions.map((session, i) => {
@@ -222,7 +221,7 @@ export function SessionList({ sessions, onSelect, onCancel }: Props): React.Reac
                         {...(actualIndex === safeIndex ? { bold: true } : {})}
                         color={actualIndex === safeIndex ? "#229ac3" : undefined}
                       >
-                        {formatSessionTitle(session.summary || "Untitled")}
+                        {formatSessionTitle(session.summary || "未命名")}
                       </Text>
                       <Text dimColor> ({formatSessionStatus(session.status)})</Text>
                     </Box>
@@ -236,9 +235,9 @@ export function SessionList({ sessions, onSelect, onCancel }: Props): React.Reac
           )}
           {scrollOffset > 0 || scrollOffset + maxVisibleSessions < filteredSessions.length ? (
             <Box marginTop={1}>
-              {scrollOffset > 0 ? <Text dimColor>… {scrollOffset} sessions above. </Text> : null}
+              {scrollOffset > 0 ? <Text dimColor>… 上方还有 {scrollOffset} 个会话。 </Text> : null}
               {scrollOffset + maxVisibleSessions < filteredSessions.length ? (
-                <Text dimColor>… {filteredSessions.length - scrollOffset - maxVisibleSessions} sessions below.</Text>
+                <Text dimColor>… 下方还有 {filteredSessions.length - scrollOffset - maxVisibleSessions} 个会话。</Text>
               ) : null}
             </Box>
           ) : null}
@@ -247,12 +246,12 @@ export function SessionList({ sessions, onSelect, onCancel }: Props): React.Reac
         <Box flexDirection="column">
           {hasActiveSearch ? (
             <Box>
-              <Text dimColor>Esc clear search · </Text>
-              <Text dimColor>↑/↓ navigate · Enter select · Esc again to cancel</Text>
+              <Text dimColor>Esc 清空搜索 · </Text>
+              <Text dimColor>↑/↓ 导航 · Enter 选择 · 再按 Esc 取消</Text>
             </Box>
           ) : (
             <Box>
-              <Text dimColor>Type to search · ↑/↓ navigate · PgUp/PgDn page · Enter select · Esc cancel</Text>
+              <Text dimColor>输入搜索 · ↑/↓ 导航 · PgUp/PgDn 翻页 · Enter 选择 · Esc 取消</Text>
             </Box>
           )}
         </Box>
@@ -280,17 +279,17 @@ export function formatSessionTitle(value: string, max = 70): string {
 export function formatSessionStatus(status: SessionStatus): string {
   switch (status) {
     case "completed":
-      return "done";
+      return "完成";
     case "processing":
-      return "running";
+      return "处理中";
     case "pending":
-      return "pending";
+      return "等待中";
     case "waiting_for_user":
-      return "waiting";
+      return "等待用户";
     case "failed":
-      return "failed";
+      return "失败";
     case "interrupted":
-      return "stopped";
+      return "已停止";
     default:
       return status;
   }

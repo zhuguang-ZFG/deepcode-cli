@@ -219,7 +219,7 @@ export function renderMessageToStdout(message: SessionMessage, mode: RawMode): s
 
     if (isThinking) {
       const summary = buildThinkingSummary(content, message.messageParams, mode);
-      return `${chalk("✧")} ${chalk("Thinking")}${summary ? ` ${chalk(summary)}` : ""}`;
+      return `${chalk("✧")} ${chalk("思考")}${summary ? ` ${chalk(summary)}` : ""}`;
     }
 
     return `${chalk("✦")} ${content}`;
@@ -260,10 +260,10 @@ export function renderMessageToStdout(message: SessionMessage, mode: RawMode): s
     }
     if (message.meta?.skill && typeof message.meta.skill === "object") {
       const skillName = (message.meta.skill as { name?: unknown }).name;
-      return chalk(`⚡ Loaded skill: ${typeof skillName === "string" ? skillName : ""}`);
+      return chalk(`⚡ 已加载技能: ${typeof skillName === "string" ? skillName : ""}`);
     }
     if (message.meta?.isSummary) {
-      return chalk.dim.italic("(conversation summary inserted)");
+      return chalk.dim.italic("(已插入对话摘要)");
     }
     return "";
   }

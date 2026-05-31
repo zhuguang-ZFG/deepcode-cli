@@ -215,9 +215,9 @@ export function AskUserQuestionPrompt({ questions, onSubmit, onCancel }: Props):
         <Text dimColor>
           {statusMessage ??
             (isCurrentOther
-              ? "Type your answer · Backspace edit · Enter submit/next · ↑ choose presets · Esc type manually"
+              ? "输入答案 · Backspace 编辑 · Enter 提交/下一步 · ↑ 选择预设 · Esc 手动输入"
               : question.multiSelect
-                ? "↑/↓ move · Space toggle · Enter submit/next · Esc type manually"
+                ? "↑/↓ 移动 · Space 切换 · Enter 提交/下一步 · Esc 手动输入"
                 : "↑/↓ move · Enter select/next · Esc type manually")}
         </Text>
       </Box>

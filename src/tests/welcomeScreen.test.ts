@@ -33,6 +33,10 @@ test("buildWelcomeTips includes built-in slash commands and loaded skills", () =
   assert.ok(labels.includes("/new"));
   assert.ok(labels.includes("/loaded"));
   assert.equal(labels.includes("/fresh"), false);
+  assert.equal(
+    tips.some((tip) => /Send the prompt|Quit LiMa Code CLI/.test(tip.description)),
+    false
+  );
 });
 
 test("buildWelcomeActions makes the first-run workflow explicit", () => {
@@ -40,7 +44,7 @@ test("buildWelcomeActions makes the first-run workflow explicit", () => {
 
   assert.deepEqual(
     actions.map((action) => action.command),
-    ["/lima start", "/lima doctor", "Ask: 修复/审查/部署这个项目"]
+    ["/lima start", "/lima doctor", "提问: 修复/审查/部署这个项目"]
   );
-  assert.match(actions[0]?.description ?? "", /recommended/i);
+  assert.match(actions[0]?.description ?? "", /推荐/);
 });

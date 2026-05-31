@@ -1,7 +1,7 @@
 /**
- * Drone — autonomous coding loop.
+ * Drone autonomous coding loop.
  *
- * probe → plan/patch → learn → re-probe
+ * probe -> plan/patch -> learn -> re-probe
  *
  * Safety: risk classification, file snapshots, checkpoint/resume,
  * quarantine, budget limits, stop marker.
@@ -24,8 +24,6 @@ import type { LiMaAgentTaskResult, LiMaAgentTaskRequest } from "./agent-task-typ
 import type { LiMaTelegramEvent } from "./telegram-notifier";
 import { createWorkerBudget } from "./worker-budget";
 import { execSync } from "child_process";
-
-// ─── Types ────────────────────────────────────────────────────────────────
 
 export type DroneConfig = {
   projectRoot: string;
@@ -54,8 +52,6 @@ export type DroneCallbacks = {
   notify?: (event: LiMaTelegramEvent) => Promise<boolean>;
 };
 
-// ─── Main Loop ────────────────────────────────────────────────────────────
-
 export async function runDroneLoop(config: DroneConfig, callbacks: DroneCallbacks): Promise<DroneReport> {
   const t0 = Date.now();
   const messages: string[] = [];
@@ -69,49 +65,46 @@ export async function runDroneLoop(config: DroneConfig, callbacks: DroneCallback
     maxMinutes: config.maxMinutes,
   });
 
-  // ── Step 1: Recover from checkpoint ───────────────────────────────────
+  // Step 1: Recover from checkpoint.
   const existingCp = loadCheckpoint(config.projectRoot);
   if (existingCp && !isStale(existingCp)) {
-    messages.push(`Resuming from checkpoint: task ${existingCp.taskId} (${existingCp.mode})`);
+    messages.push(`从 checkpoint 恢复: 任务 ${existingCp.taskId} (${existingCp.mode})`);
     checkpointUsed = true;
     const restored = rollbackSnapshots(config.projectRoot, existingCp);
-    messages.push(`Rolled back ${restored} files`);
+    messages.push(`已回滚 ${restored} 个文件`);
     clearCheckpoint(config.projectRoot);
   } else if (existingCp && isStale(existingCp)) {
-    messages.push(`Stale checkpoint found (task ${existingCp.taskId}), rolling back`);
+    messages.push(`发现过期 checkpoint (任务 ${existingCp.taskId})，正在回滚`);
     rollbackSnapshots(config.projectRoot, existingCp);
     clearCheckpoint(config.projectRoot);
   }
 
-  // ── Step 2: Initial probe ─────────────────────────────────────────────
+  // Step 2: Initial probe.
   const probeResult = probeCodebase(config.projectRoot);
   const findings = filterFindings(probeResult.findings, config.allowMediumRisk);
   messages.push(
-    `Probe: ${probeResult.scannedFiles} files scanned in ${probeResult.scanDurationMs}ms, ${findings.length} actionable findings`
+    `探测: 已扫描 ${probeResult.scannedFiles} 个文件，用时 ${probeResult.scanDurationMs}ms，可处理问题 ${findings.length} 个`
   );
 
   if (findings.length === 0) {
     return buildReport(0, 0, 0, 0, probeResult.findings.length, t0, checkpointUsed, messages);
   }
 
-  // ── Step 3: Execute findings ──────────────────────────────────────────
+  // Step 3: Execute findings.
   const processed = new Set<string>();
 
   while (findings.length > 0 && budget.canStartNext().ok) {
-    // Check stop marker
     const stop = readWorkerStop(config.projectRoot);
     if (stop.stop) {
-      messages.push(`Stop requested: ${stop.reason}`);
+      messages.push(`收到停止请求: ${stop.reason}`);
       break;
     }
 
-    // Check signal
     if (config.signal?.aborted) {
-      messages.push("Aborted by signal");
+      messages.push("已被外部信号中止");
       break;
     }
 
-    // Take the highest-severity finding
     const finding = findings[0];
     if (processed.has(finding.id)) {
       findings.shift();
@@ -136,11 +129,9 @@ export async function runDroneLoop(config: DroneConfig, callbacks: DroneCallback
       mode: taskConfig.mode,
     };
 
-    // Snapshot files before execution
     const affectedFiles = [finding.file];
     const snapDir = snapshotFiles(config.projectRoot, affectedFiles);
 
-    // Save checkpoint
     const checkpoint: Checkpoint = {
       taskId,
       findingId: finding.id,
@@ -153,10 +144,9 @@ export async function runDroneLoop(config: DroneConfig, callbacks: DroneCallback
     saveCheckpoint(config.projectRoot, checkpoint);
 
     messages.push(
-      `[${tasksAttempted}/${config.maxTasks}] ${finding.severity} ${finding.rule} → ${finding.file}:${finding.line}`
+      `[${tasksAttempted}/${config.maxTasks}] ${finding.severity} ${finding.rule} -> ${finding.file}:${finding.line}`
     );
 
-    // Notify task start
     await notifyBestEffort(callbacks.notify, {
       type: "task_started",
       taskId,
@@ -170,19 +160,17 @@ export async function runDroneLoop(config: DroneConfig, callbacks: DroneCallback
         projectRoot: config.projectRoot,
       });
 
-      // Write audit
       callbacks.writeAudit?.(config.projectRoot, taskRequest, result);
 
       if (result.status === "needs_review" || result.status === "succeeded") {
         tasksSucceeded++;
         processed.add(finding.id);
-        messages.push(`  ✓ ${result.status}: ${result.summary.slice(0, 80)}`);
+        messages.push(`  完成 ${result.status}: ${result.summary.slice(0, 80)}`);
 
-        // Submit to server if callback available
         if (callbacks.submitResult) {
           const submitResult = await callbacks.submitResult(result);
           if (!submitResult.ok) {
-            messages.push(`  ⚠ Submit failed: ${submitResult.error}`);
+            messages.push(`  提交失败: ${submitResult.error}`);
           }
         }
 
@@ -194,25 +182,24 @@ export async function runDroneLoop(config: DroneConfig, callbacks: DroneCallback
         });
       } else {
         tasksFailed++;
-        messages.push(`  ✗ ${result.status}: ${result.summary.slice(0, 80)}`);
+        messages.push(`  失败 ${result.status}: ${result.summary.slice(0, 80)}`);
 
         recordTaskFailure(config.projectRoot, taskId, result.summary);
         const quarantine = shouldQuarantineTask(config.projectRoot, taskId);
         if (quarantine.quarantine) {
-          messages.push(`  ⚠ Quarantined after ${quarantine.failureCount} failures`);
+          messages.push(`  已隔离: 连续失败 ${quarantine.failureCount} 次`);
           await notifyBestEffort(callbacks.notify, {
             type: "task_failed",
             taskId,
             status: "quarantined",
-            summary: `Quarantined: ${quarantine.reason}`,
+            summary: `已隔离: ${quarantine.reason}`,
           });
           break;
         }
 
-        // Rollback on failure
         const restored = rollbackSnapshots(config.projectRoot, checkpoint);
         if (restored > 0) {
-          messages.push(`  ↩ Rolled back ${restored} files`);
+          messages.push(`  已回滚 ${restored} 个文件`);
         }
 
         await notifyBestEffort(callbacks.notify, {
@@ -225,31 +212,27 @@ export async function runDroneLoop(config: DroneConfig, callbacks: DroneCallback
     } catch (err) {
       tasksFailed++;
       const errMsg = err instanceof Error ? err.message : String(err);
-      messages.push(`  ✗ Error: ${errMsg.slice(0, 100)}`);
+      messages.push(`  错误: ${errMsg.slice(0, 100)}`);
       recordTaskFailure(config.projectRoot, taskId, errMsg);
 
-      // Rollback on error
       rollbackSnapshots(config.projectRoot, checkpoint);
     }
 
-    // Clear checkpoint after completion
     clearCheckpoint(config.projectRoot);
 
-    // Remove processed finding
     findings.shift();
 
-    // Sleep between tasks
     if (findings.length > 0 && config.intervalMs > 0) {
       await sleepMs(config.intervalMs);
     }
   }
 
-  // ── Step 4: Re-probe ──────────────────────────────────────────────────
+  // Step 4: Re-probe.
   const finalProbe = probeCodebase(config.projectRoot);
   const remainingFindings = filterFindings(finalProbe.findings, config.allowMediumRisk);
   const resolved = probeResult.findings.length - remainingFindings.length;
 
-  messages.push(`Final probe: ${remainingFindings.length} findings remaining (${resolved} resolved)`);
+  messages.push(`最终探测: 剩余 ${remainingFindings.length} 个问题，已解决 ${resolved} 个`);
 
   return buildReport(
     tasksAttempted,
@@ -263,8 +246,6 @@ export async function runDroneLoop(config: DroneConfig, callbacks: DroneCallback
   );
 }
 
-// ─── Probe-only mode ──────────────────────────────────────────────────────
-
 export function probeOnly(projectRoot: string, asJson: boolean): string {
   const result = probeCodebase(projectRoot);
   if (asJson) {
@@ -272,8 +253,6 @@ export function probeOnly(projectRoot: string, asJson: boolean): string {
   }
   return formatProbeTable(result);
 }
-
-// ─── Helpers ──────────────────────────────────────────────────────────────
 
 function filterFindings(findings: ProbeFinding[], allowMedium: boolean): ProbeFinding[] {
   return findings.filter((f) => {
@@ -284,17 +263,16 @@ function filterFindings(findings: ProbeFinding[], allowMedium: boolean): ProbeFi
 
 function formatProbeTable(result: ProbeResult): string {
   const lines: string[] = [
-    `Scanned ${result.scannedFiles} files in ${result.scanDurationMs}ms`,
-    `Found ${result.findings.length} issues`,
+    `已扫描 ${result.scannedFiles} 个文件，用时 ${result.scanDurationMs}ms`,
+    `发现 ${result.findings.length} 个问题`,
     "",
   ];
 
   if (result.findings.length === 0) {
-    lines.push("No actionable findings. Codebase looks clean.");
+    lines.push("未发现可处理问题，代码库看起来干净。");
     return lines.join("\n");
   }
 
-  // Group by severity
   const bySeverity: Record<string, ProbeFinding[]> = { medium: [], small: [], trivial: [] };
   for (const f of result.findings) {
     bySeverity[f.severity]?.push(f);
@@ -302,14 +280,14 @@ function formatProbeTable(result: ProbeResult): string {
 
   for (const [sev, items] of Object.entries(bySeverity)) {
     if (items.length === 0) continue;
-    lines.push(`── ${sev.toUpperCase()} (${items.length}) ──`);
+    lines.push(`-- ${sev.toUpperCase()} (${items.length}) --`);
     for (const f of items) {
       lines.push(`  ${f.file}:${f.line}  [${f.rule}]  ${f.message}`);
     }
     lines.push("");
   }
 
-  lines.push("Run /lima drone to auto-fix trivial and small issues.");
+  lines.push("运行 /lima drone 自动处理 trivial 和 small 问题。");
   return lines.join("\n");
 }
 
@@ -354,7 +332,7 @@ async function notifyBestEffort(
   try {
     await notify?.(event);
   } catch {
-    // Best-effort
+    // Best effort only; caller reports operator-visible failures.
   }
 }
 

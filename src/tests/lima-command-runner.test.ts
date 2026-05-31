@@ -322,11 +322,11 @@ test("executeLiMaCommand start returns an operator workbench", async () => {
   });
 
   assert.equal(response.ok, true);
-  assert.match(response.message, /LiMa Code workbench/);
+  assert.match(response.message, /LiMa Code 工作台/);
   assert.match(response.message, /\/lima doctor/);
   assert.match(response.message, /\/lima review/);
   assert.match(response.message, /\/lima test --cmd/);
-  assert.match(response.message, /Ask:/);
+  assert.match(response.message, /提问:/);
 });
 
 test("executeLiMaCommand runs local test stage with explicit command", async () => {
@@ -364,9 +364,9 @@ test("executeLiMaCommand runs local ship readiness stage without deploy or push"
       assert.equal(task.task_id, "local-ship");
       assert.equal(task.mode, "ship");
       assert.deepEqual(task.allowed_tools, ["git_diff"]);
-      assert.match(task.goal, /Ship readiness/);
+      assert.match(task.goal, /交付就绪状态/);
       assert.equal(
-        task.constraints.some((constraint) => /Do not deploy or push/i.test(constraint)),
+        task.constraints.some((constraint) => /不要.*部署.*推送/.test(constraint)),
         true
       );
       return buildReviewResult("local-ship");
@@ -398,7 +398,7 @@ test("executeLiMaCommand reports when no pending task exists", async () => {
   });
 
   assert.equal(response.ok, true);
-  assert.match(response.message, /No pending LiMa task/);
+  assert.match(response.message, /当前没有待处理的 LiMa 任务/);
 });
 
 test("executeLiMaCommand shows recent audit entries", async () => {
@@ -436,9 +436,9 @@ test("executeLiMaCommand handles daemon stop and status", async () => {
   });
 
   assert.equal(stop.ok, true);
-  assert.match(stop.message, /stop requested/);
+  assert.match(stop.message, /已请求停止/);
   assert.equal(status.ok, true);
-  assert.match(status.message, /stop pending/);
+  assert.match(status.message, /停止请求待处理/);
 });
 
 test("executeLiMaCommand rejects daemon start when env gate is off", async () => {
@@ -542,7 +542,7 @@ test("executeLiMaCommand work loop stops when marker is present", async () => {
   });
 
   assert.equal(response.ok, true);
-  assert.match(response.message, /stopped by marker/);
+  assert.match(response.message, /停止标记/);
 });
 
 test("executeLiMaCommand work loop processes pending tasks up to max-tasks", async () => {
@@ -574,7 +574,7 @@ test("executeLiMaCommand work loop processes pending tasks up to max-tasks", asy
   });
 
   assert.equal(response.ok, true);
-  assert.match(response.message, /processed 2 task/);
+  assert.match(response.message, /已处理 2 个任务/);
   assert.deepEqual(submitted, ["task-a", "task-b"]);
   assert.deepEqual(sleeps, [7]);
 });
@@ -610,7 +610,7 @@ test("executeLiMaCommand work loop stops when session time budget is reached", a
   });
 
   assert.equal(response.ok, true);
-  assert.match(response.message, /time budget/);
+  assert.match(response.message, /时间预算/);
   assert.deepEqual(submitted, ["task-a"]);
 });
 
@@ -655,7 +655,7 @@ test("executeLiMaCommand quarantines repeated task failures", async () => {
   });
 
   assert.equal(response.ok, false);
-  assert.match(response.message, /quarantined/);
+  assert.match(response.message, /被隔离/);
   assert.equal(quarantined, "task-a");
 });
 
@@ -679,7 +679,7 @@ test("executeLiMaCommand work loop stops cleanly when no task is pending", async
   });
 
   assert.equal(response.ok, true);
-  assert.match(response.message, /No pending LiMa task/);
+  assert.match(response.message, /当前没有待处理的 LiMa 任务/);
 });
 
 test("executeLiMaCommand can patch and test a temporary real repo", async () => {
@@ -750,7 +750,7 @@ test("executeLiMaCommand work loop respects abort signal", async () => {
   });
 
   assert.equal(response.ok, false);
-  assert.match(response.message, /aborted/);
+  assert.match(response.message, /被中断/);
 });
 
 test("executeLiMaCommand reports connect status without exposing the api key", async () => {
@@ -774,7 +774,7 @@ test("executeLiMaCommand reports connect status without exposing the api key", a
   });
 
   assert.equal(response.ok, true);
-  assert.match(response.message, /configured/);
+  assert.match(response.message, /已配置/);
   assert.doesNotMatch(response.message, /secret-key/);
 });
 

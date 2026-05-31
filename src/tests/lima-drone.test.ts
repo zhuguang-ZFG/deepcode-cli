@@ -58,7 +58,7 @@ test("probeOnly: returns human-readable table by default", () => {
   try {
     fs.writeFileSync(path.join(tmpDir, "a.py"), "TODO: fix\n");
     const output = probeOnly(tmpDir, false);
-    assert.ok(output.includes("Scanned"));
+    assert.ok(output.includes("已扫描"));
     assert.ok(output.includes("TODO"));
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
@@ -70,7 +70,7 @@ test("probeOnly: reports clean codebase", () => {
   try {
     fs.writeFileSync(path.join(tmpDir, "clean.py"), "def hello():\n    return 1\n");
     const output = probeOnly(tmpDir, false);
-    assert.ok(output.includes("No actionable findings"));
+    assert.ok(output.includes("未发现可处理问题"));
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
@@ -173,7 +173,7 @@ test("drone: includes messages in report", async () => {
     };
     const report = await runDroneLoop(config, callbacks);
     assert.ok(report.messages.length > 0);
-    assert.ok(report.messages.some((m) => m.includes("Probe:")));
+    assert.ok(report.messages.some((m) => m.includes("探测:")));
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }

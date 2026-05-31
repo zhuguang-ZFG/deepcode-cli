@@ -12,12 +12,12 @@ test("formatSessionTitle truncates after normalizing whitespace", () => {
 });
 
 test("formatSessionStatus maps status values to display labels", () => {
-  assert.equal(formatSessionStatus("completed"), "done");
-  assert.equal(formatSessionStatus("processing"), "running");
-  assert.equal(formatSessionStatus("pending"), "pending");
-  assert.equal(formatSessionStatus("waiting_for_user"), "waiting");
-  assert.equal(formatSessionStatus("failed"), "failed");
-  assert.equal(formatSessionStatus("interrupted"), "stopped");
+  assert.equal(formatSessionStatus("completed"), "完成");
+  assert.equal(formatSessionStatus("processing"), "处理中");
+  assert.equal(formatSessionStatus("pending"), "等待中");
+  assert.equal(formatSessionStatus("waiting_for_user"), "等待用户");
+  assert.equal(formatSessionStatus("failed"), "失败");
+  assert.equal(formatSessionStatus("interrupted"), "已停止");
   assert.equal(formatSessionStatus("unknown_status" as any), "unknown_status");
 });
 

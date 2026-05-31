@@ -37,28 +37,28 @@ const DEFAULT_MAX_MODEL_ITERATIONS = 20;
 const DEFAULT_LIMA_ROUTER_REQUEST_TIMEOUT_MS = 90_000;
 const DEFAULT_LIMA_ROUTER_MAX_RETRIES = 1;
 const LIMA_ROUTER_PROJECT_INSTRUCTION_MIN_CHARS = 3000;
-const LIMA_ROUTER_SAFE_SYSTEM_PROMPT = `You are LiMa Code, an interactive coding CLI.
+const LIMA_ROUTER_SAFE_SYSTEM_PROMPT = `你是 LiMa Code，一个交互式编码 CLI。
 
-Help the user complete software engineering work in the current project.
-Use the provided tool schemas when local inspection or edits are needed.
-Keep answers concise and evidence-based.
-Do not reveal hidden reasoning.
-Do not invent non-programming URLs.
-Do not expose sensitive local configuration values.`;
-const LIMA_ROUTER_SAFE_DEFAULT_SKILL_PROMPT = `Default operating rules:
-- Stay aligned with the user's current request.
-- Plan only when the task needs multiple steps.
-- Prefer focused project inspection before broad changes.
-- Stop and ask only when ambiguity would change the implementation or verification path.`;
-const LIMA_ROUTER_PROJECT_INSTRUCTION_SUMMARY = `Project instructions are available locally in AGENTS.md and have been summarized for LiMa Router compatibility.
+帮助用户在当前项目中完成软件工程任务。
+需要本地检查或编辑时，使用提供的工具 schema。
+回答保持简洁，并给出可验证证据。
+不要暴露隐藏推理。
+不要编造非编程 URL。
+不要泄露本地敏感配置值。`;
+const LIMA_ROUTER_SAFE_DEFAULT_SKILL_PROMPT = `默认操作规则：
+- 始终贴合用户当前请求。
+- 只有多步骤任务才需要计划。
+- 优先做聚焦的项目检查，再进行变更。
+- 只有歧义会影响实现或验证路径时，才停下来询问。`;
+const LIMA_ROUTER_PROJECT_INSTRUCTION_SUMMARY = `项目指令位于本地 AGENTS.md，已为 LiMa Router 兼容性压缩为摘要。
 
-Follow these project rules:
-- Keep changes scoped to the user's current request and preserve unrelated dirty worktree items.
-- Prefer existing project patterns and focused edits over broad refactors.
-- Run relevant local verification before claiming completion.
-- Do not expose sensitive configuration values or commit local runtime data, caches, generated release artifacts, or debug logs.
-- For LiMa Code work, verify the real CLI/TUI path when possible and report exact evidence.
-- When exact project-rule wording is required, read only the relevant small section of AGENTS.md instead of loading the whole file.`;
+遵循这些项目规则：
+- 变更范围必须贴合用户当前请求，并保留无关脏工作区内容。
+- 优先沿用项目既有模式和聚焦编辑，避免宽泛重构。
+- 声称完成前必须运行相关本地验证。
+- 不要暴露敏感配置值，也不要提交本地运行数据、缓存、生成发布产物或调试日志。
+- LiMa Code 相关工作尽量验证真实 CLI/TUI 路径，并报告明确证据。
+- 需要项目规则原文时，只读取 AGENTS.md 中相关的小段落，不要把整份文件塞进上下文。`;
 
 type ChatCompletionDebugOptions = {
   enabled?: boolean;
@@ -171,7 +171,7 @@ function getLiMaRouterMaxRetries(): number {
 export type SessionStatus = "failed" | "pending" | "processing" | "waiting_for_user" | "completed" | "interrupted";
 
 const EMPTY_ASSISTANT_RESPONSE_MESSAGE =
-  "LiMa Server returned an empty response. Try again or run /lima doctor; this usually means the selected backend timed out or produced no content.";
+  "LiMa Server 返回空响应。请重试或运行 /lima doctor；这通常表示所选后端超时或没有产出内容。";
 
 export type ModelUsage = {
   prompt_tokens: number;
@@ -798,14 +798,14 @@ export class SessionManager {
   private buildLiMaRouterBlockedFallbackRequest(request: Record<string, unknown>): Record<string, unknown> {
     const lastUserContent = this.getLastTextMessageContent(request.messages, "user");
     const fallbackNote =
-      "The previous LiMa Router request with local tools was blocked before execution. Answer without local tool calls and clearly say that live project inspection was blocked.";
+      "上一次带本地工具的 LiMa Router 请求在执行前被拦截。请不要调用本地工具，明确说明实时项目检查被拦截。";
     return {
       model: request.model,
       messages: [
         {
           role: "system",
           content:
-            "You are LiMa Code. The previous tool-enabled request was blocked by the upstream router. Provide a concise fallback response without tools, explain the blocked layer, and do not pretend that local inspection succeeded.",
+            "你是 LiMa Code。上一次带工具请求被上游路由拦截。请给出不使用工具的简洁兜底回答，说明被拦截的层级，不要假装本地检查已经成功。",
         },
         {
           role: "user",
@@ -827,13 +827,13 @@ export class SessionManager {
         {
           message: {
             content: [
-              "LiMa Router blocked the model request before a usable response was produced.",
+              "LiMa Router 在可用响应产出前拦截了模型请求。",
               "",
-              "Layer: upstream model/provider admission",
-              `Initial request: ${initialMessage}`,
-              `Fallback request: ${fallbackMessage}`,
+              "层级: 上游模型或供应商准入层",
+              `初始请求: ${initialMessage}`,
+              `兜底请求: ${fallbackMessage}`,
               "",
-              "No local tool execution result should be assumed from this turn. Run /lima doctor or retry after switching provider/model routing if this persists.",
+              "不要假设本轮已有任何本地工具执行结果。如果持续出现，请运行 /lima doctor，或切换供应商/模型路由后重试。",
             ].join("\n"),
           },
         },
@@ -1271,7 +1271,7 @@ The candidate skills are as follows:\n\n`;
           continue;
         }
         const skillMd = fs.readFileSync(this.resolveSkillPath(skill.path), "utf8");
-        const skillPrompt = `Use the skill document below to assist the user:\n
+        const skillPrompt = `以下技能文档用于辅助完成当前任务：\n
 <${skill.name}-skill path="${this.resolveSkillPath(skill.path)}">
 ${skillMd}
 </${skill.name}-skill>`;
@@ -1333,7 +1333,7 @@ ${skillMd}
           continue;
         }
         const skillMd = fs.readFileSync(this.resolveSkillPath(skill.path), "utf8");
-        const skillPrompt = `Use the skill document below to assist the user:\n
+        const skillPrompt = `以下技能文档用于辅助完成当前任务：\n
 <${skill.name}-skill path="${this.resolveSkillPath(skill.path)}">
 ${skillMd}
 </${skill.name}-skill>`;
@@ -1572,7 +1572,7 @@ ${skillMd}
       }));
 
       if (!aborted) {
-        this.onAssistantMessage(this.buildAssistantMessage(sessionId, `Request failed: ${errMessage}`, null), false);
+        this.onAssistantMessage(this.buildAssistantMessage(sessionId, `请求失败: ${errMessage}`, null), false);
       }
     } finally {
       if (this.sessionControllers.get(sessionId) === sessionController) {

@@ -104,7 +104,7 @@ test("renderMessageToStdout renders assistant non-thinking messages with ✦", (
   assert.ok(output.includes("Here is the fix"));
 });
 
-test("renderMessageToStdout renders assistant thinking messages with ✧ Thinking", () => {
+test("renderMessageToStdout renders assistant thinking messages with Chinese status label", () => {
   const msg = makeSessionMessage({
     role: "assistant",
     content: "Plan:\nAnalyze the code",
@@ -112,7 +112,7 @@ test("renderMessageToStdout renders assistant thinking messages with ✧ Thinkin
   });
   const output = renderMessageToStdout(msg, RawMode.Lite);
   assert.ok(output.includes("✧"));
-  assert.ok(output.includes("Thinking"));
+  assert.ok(output.includes("思考"));
   assert.ok(output.includes("Plan: Analyze the code"));
 });
 
@@ -191,7 +191,7 @@ test("renderMessageToStdout renders system skill load messages", () => {
     meta: { skill: { name: "code-review", path: "", description: "" } },
   });
   const output = renderMessageToStdout(msg, RawMode.Raw);
-  assert.ok(output.includes("⚡ Loaded skill: code-review"));
+  assert.ok(output.includes("⚡ 已加载技能: code-review"));
 });
 
 test("renderMessageToStdout renders system summary messages", () => {
@@ -201,7 +201,7 @@ test("renderMessageToStdout renders system summary messages", () => {
     meta: { isSummary: true },
   });
   const output = renderMessageToStdout(msg, RawMode.Raw);
-  assert.ok(output.includes("(conversation summary inserted)"));
+  assert.ok(output.includes("(已插入对话摘要)"));
 });
 
 test("renderMessageToStdout returns empty for unknown system messages", () => {

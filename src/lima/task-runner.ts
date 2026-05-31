@@ -97,32 +97,32 @@ function runPlanMode(task: LiMaTaskRunnerRequest, projectRoot: string): LiMaAgen
   return buildLiMaTaskResult(task, {
     status: "needs_review",
     summary: [
-      `Plan written for: ${task.goal}`,
-      `Context: ${context.changedFiles.length} changed file(s), ${context.recentFiles.length} recent file(s).`,
-      `Artifact bundle: ${bundle.dir}`,
-      `Files: ${bundle.files.join(", ")}`,
+      `计划已写入: ${task.goal}`,
+      `上下文: ${context.changedFiles.length} 个变更文件，${context.recentFiles.length} 个近期文件。`,
+      `产物包: ${bundle.dir}`,
+      `文件: ${bundle.files.join(", ")}`,
     ].join("\n"),
     changedFiles: context.changedFiles,
     artifacts: bundle.files.map((f) => `${bundle.dir}/${f}`),
     risks: context.existingRisks.slice(0, 5),
-    nextAction: "Review plan.md, context.json, and risks.md, then decide on patch/test/ship.",
+    nextAction: "审查 plan.md、context.json 和 risks.md，然后决定 patch/test/ship。",
   });
 }
 
 function buildSuggestedSlice(task: LiMaTaskRunnerRequest, context: ContextSnapshot): string {
   const lines = [
-    `Based on current repository state:`,
-    `- Branch: ${context.branch}`,
-    `- Changed files: ${context.changedFiles.length > 0 ? context.changedFiles.join(", ") : "(clean working tree)"}`,
-    `- Task goal: ${task.goal}`,
+    `基于当前仓库状态：`,
+    `- 分支: ${context.branch}`,
+    `- 变更文件: ${context.changedFiles.length > 0 ? context.changedFiles.join(", ") : "(工作区干净)"}`,
+    `- 任务目标: ${task.goal}`,
     ``,
-    `Suggested approach:`,
-    `1. Review the changed files and existing risks above.`,
-    `2. Identify the smallest change that moves toward the goal.`,
-    `3. Write a patch, run tests, and review with /lima ship.`,
+    `建议路径：`,
+    `1. 审查上面的变更文件和既有风险。`,
+    `2. 找到能推进目标的最小改动。`,
+    `3. 编写补丁、运行测试，并用 /lima ship 审查。`,
   ];
   if (context.changedFiles.length === 0) {
-    lines.push(`4. Start with a focused edit to one file, then re-run /lima plan.`);
+    lines.push(`4. 从一个聚焦文件改动开始，然后重新运行 /lima plan。`);
   }
   return lines.join("\n");
 }
@@ -134,12 +134,12 @@ async function runPatchMode(
   config: LiMaTaskRunnerConfig
 ): Promise<LiMaAgentTaskResult> {
   if (!task.allowed_tools.includes("write")) {
-    return blockedResult(task, "Patch mode requires the write tool.");
+    return blockedResult(task, "patch 模式需要 write 工具。");
   }
 
   const testCommands = extractTestCommands(task);
   if (testCommands.length > 0 && !task.allowed_tools.includes("test")) {
-    return blockedResult(task, "Patch mode with test commands requires the test tool.");
+    return blockedResult(task, "带测试命令的 patch 模式需要 test 工具。");
   }
 
   const patchFiles = task.patch_files ?? [];
@@ -156,10 +156,10 @@ async function runPatchMode(
   if (patchFiles.length === 0) {
     return buildLiMaTaskResult(task, {
       status: "blocked",
-      summary: "Patch mode requires explicit patch_files; no files were modified.",
+      summary: "patch 模式需要明确的 patch_files；未修改任何文件。",
       changedFiles: diff.changedFiles,
       diffPreview: diff.preview,
-      nextAction: "Provide explicit patch_files.",
+      nextAction: "提供明确的 patch_files。",
     });
   }
 
@@ -168,32 +168,32 @@ async function runPatchMode(
     if (!testRun.ok) {
       return buildLiMaTaskResult(task, {
         status: "failed",
-        summary: `Applied ${patchFiles.length} file update(s), but test command failed: ${testRun.failedCommand}`,
+        summary: `已应用 ${patchFiles.length} 个文件更新，但测试命令失败: ${testRun.failedCommand}`,
         changedFiles: diff.changedFiles,
         diffPreview: diff.preview,
         testCommands: testRun.commands,
         testResults: testRun.results,
-        nextAction: "Fix failing tests before submitting.",
+        nextAction: "提交前先修复失败测试。",
       });
     }
 
     return buildLiMaTaskResult(task, {
       status: "needs_review",
-      summary: `Applied ${patchFiles.length} file update(s) and all requested test commands passed. No commit was created.`,
+      summary: `已应用 ${patchFiles.length} 个文件更新，且所有请求的测试命令已通过。未创建 commit。`,
       changedFiles: diff.changedFiles,
       diffPreview: diff.preview,
       testCommands: testRun.commands,
       testResults: testRun.results,
-      nextAction: "Review diff and submit result to LiMa Server.",
+      nextAction: "审查 diff 并将结果提交到 LiMa Server。",
     });
   }
 
   return buildLiMaTaskResult(task, {
     status: "needs_review",
-    summary: `Applied ${patchFiles.length} file update(s). No commit was created.`,
+    summary: `已应用 ${patchFiles.length} 个文件更新。未创建 commit。`,
     changedFiles: diff.changedFiles,
     diffPreview: diff.preview,
-    nextAction: "Review diff and run tests.",
+    nextAction: "审查 diff 并运行测试。",
   });
 }
 
@@ -204,12 +204,12 @@ async function runTestMode(
   config: LiMaTaskRunnerConfig
 ): Promise<LiMaAgentTaskResult> {
   if (!task.allowed_tools.includes("test")) {
-    return blockedResult(task, "Test mode requires the test tool.");
+    return blockedResult(task, "test 模式需要 test 工具。");
   }
 
   const commands = extractTestCommands(task);
   if (commands.length === 0) {
-    return blockedResult(task, "Test mode requires at least one test command.");
+    return blockedResult(task, "test 模式至少需要一个测试命令。");
   }
 
   const testRun = await runTestCommands(commands, repoRoot, runtimeSec, config);
@@ -221,19 +221,19 @@ async function runTestMode(
   if (!testRun.ok) {
     return buildLiMaTaskResult(task, {
       status: "failed",
-      summary: `Test command failed: ${testRun.failedCommand}`,
+      summary: `测试命令失败: ${testRun.failedCommand}`,
       testCommands: testRun.commands,
       testResults: testRun.results,
-      nextAction: "Fix failing tests before submitting.",
+      nextAction: "提交前先修复失败测试。",
     });
   }
 
   return buildLiMaTaskResult(task, {
     status: "succeeded",
-    summary: "All requested test commands passed.",
+    summary: "所有请求的测试命令已通过。",
     testCommands: testRun.commands,
     testResults: testRun.results,
-    nextAction: "Submit result to LiMa Server.",
+    nextAction: "提交结果到 LiMa Server。",
   });
 }
 
@@ -244,11 +244,11 @@ async function runReviewMode(
   config: LiMaTaskRunnerConfig
 ): Promise<LiMaAgentTaskResult> {
   if (!task.allowed_tools.includes("git_diff")) {
-    return blockedResult(task, "Review mode requires the git_diff tool.");
+    return blockedResult(task, "review 模式需要 git_diff 工具。");
   }
 
   const diff = await runGitDiff(repoRoot, runtimeSec, config);
-  const findings = diff.preview ? ["Git diff detected changes for review."] : [];
+  const findings = diff.preview ? ["检测到 git diff 变更，需要审查。"] : [];
   writeReviewArtifacts(config.projectRoot ?? repoRoot, {
     task,
     diffPreview: diff.preview,
@@ -257,10 +257,10 @@ async function runReviewMode(
   });
   return buildLiMaTaskResult(task, {
     status: "needs_review",
-    summary: diff.preview ? "Review current diff for risks before patch submission." : "No git diff found to review.",
+    summary: diff.preview ? "提交 patch 前审查当前 diff 风险。" : "没有可审查的 git diff。",
     changedFiles: diff.changedFiles,
     diffPreview: diff.preview,
-    nextAction: diff.preview ? "Inspect findings and decide whether to patch." : "No action required.",
+    nextAction: diff.preview ? "检查发现项并决定是否打补丁。" : "无需操作。",
   });
 }
 
@@ -271,7 +271,7 @@ async function runShipMode(
   config: LiMaTaskRunnerConfig
 ): Promise<LiMaAgentTaskResult> {
   if (!task.allowed_tools.includes("git_diff")) {
-    return blockedResult(task, "Ship mode requires the git_diff tool.");
+    return blockedResult(task, "ship 模式需要 git_diff 工具。");
   }
 
   const projectRoot = config.projectRoot ?? repoRoot;
@@ -280,14 +280,14 @@ async function runShipMode(
 
   const remainingRisks = [
     ...context.existingRisks.slice(0, 5),
-    ...(diff.changedFiles.length > 3 ? [`Large change: ${diff.changedFiles.length} files modified.`] : []),
-    ...(diff.changedFiles.length === 0 ? ["No changes to ship."] : []),
+    ...(diff.changedFiles.length > 3 ? [`变更较大: 修改了 ${diff.changedFiles.length} 个文件。`] : []),
+    ...(diff.changedFiles.length === 0 ? ["没有可交付的变更。"] : []),
   ];
 
   const rollbackNotes =
     context.changedFiles.length > 0
-      ? `To rollback: git checkout ${context.changedFiles.map((f) => `'${f}'`).join(" ")}`
-      : "No changes to rollback.";
+      ? `回滚命令: git checkout ${context.changedFiles.map((f) => `'${f}'`).join(" ")}`
+      : "没有需要回滚的变更。";
 
   const commitSummary = context.changedFiles.length > 0 ? `feat: ${task.goal.slice(0, 60)}` : "";
 
@@ -303,17 +303,17 @@ async function runShipMode(
   return buildLiMaTaskResult(task, {
     status: "needs_review",
     summary: [
-      `Ship review written for: ${task.goal}`,
-      `Changed files: ${diff.changedFiles.length}.`,
-      `Remaining risks: ${remainingRisks.length}.`,
-      `Artifact bundle: ${bundle.dir}`,
-      `Files: ${bundle.files.join(", ")}`,
+      `交付审查已写入: ${task.goal}`,
+      `变更文件: ${diff.changedFiles.length}。`,
+      `剩余风险: ${remainingRisks.length}。`,
+      `产物包: ${bundle.dir}`,
+      `文件: ${bundle.files.join(", ")}`,
     ].join("\n"),
     changedFiles: diff.changedFiles,
     diffPreview: diff.preview,
     artifacts: bundle.files.map((f) => `${bundle.dir}/${f}`),
     risks: remainingRisks,
-    nextAction: "Review ship.md, diff.patch, and risks before committing. Do NOT deploy or push from this check.",
+    nextAction: "提交前审查 ship.md、diff.patch 和风险。不要在此检查中部署或推送。",
   });
 }
 
@@ -335,7 +335,7 @@ function blockedResult(task: Pick<LiMaAgentTaskRequest, "task_id">, reason: stri
     status: "blocked",
     summary: reason,
     risks: [reason],
-    nextAction: "Fix task configuration and retry.",
+    nextAction: "修复任务配置后重试。",
   });
 }
 

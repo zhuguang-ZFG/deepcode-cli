@@ -326,7 +326,7 @@ test("SessionManager surfaces empty assistant responses as visible failures", as
 
   assert.equal(manager.getSession(sessionId)?.status, "failed");
   assert.equal(assistantMessage?.visible, true);
-  assert.match(String(assistantMessage?.content), /empty response/);
+  assert.match(String(assistantMessage?.content), /空响应/);
 });
 
 test("SessionManager marks skills loaded from existing session messages", async () => {
@@ -351,7 +351,7 @@ test("SessionManager marks skills loaded from existing session messages", async 
       id: "skill-message",
       sessionId: "loaded-session",
       role: "system",
-      content: "Use the skill document below",
+      content: "以下技能文档用于辅助完成当前任务",
       contentParams: null,
       messageParams: null,
       compacted: false,
@@ -2159,7 +2159,7 @@ test("SessionManager retries blocked LiMa Router requests without tools", async 
   assert.equal(requests.length, 2);
   assert.ok(requests[0]?.tools);
   assert.equal(requests[1]?.tools, undefined);
-  assert.match(JSON.stringify(requests[1]?.messages ?? []), /tool-enabled request was blocked/);
+  assert.match(JSON.stringify(requests[1]?.messages ?? []), /带工具请求被上游路由拦截/);
   assert.equal(manager.getSession(sessionId)?.assistantReply, "fallback response");
 });
 
@@ -2199,7 +2199,7 @@ test("SessionManager reports blocked LiMa Router requests locally when fallback 
 
   assert.equal(requests.length, 2);
   assert.equal(manager.getSession(sessionId)?.status, "completed");
-  assert.match(manager.getSession(sessionId)?.assistantReply ?? "", /upstream model\/provider admission/);
+  assert.match(manager.getSession(sessionId)?.assistantReply ?? "", /上游模型或供应商准入层/);
 });
 
 test("SessionManager summarizes large project instructions for LiMa Router requests", async () => {
@@ -2252,11 +2252,11 @@ test("SessionManager summarizes large project instructions for LiMa Router reque
 
   assert.ok(capturedRequest);
   const renderedMessages = JSON.stringify((capturedRequest as Record<string, unknown>).messages ?? []);
-  assert.match(renderedMessages, /interactive coding CLI/);
+  assert.match(renderedMessages, /交互式编码 CLI/);
   assert.doesNotMatch(renderedMessages, /# Available Tools/);
-  assert.match(renderedMessages, /Default operating rules/);
+  assert.match(renderedMessages, /默认操作规则/);
   assert.doesNotMatch(renderedMessages, /<agent-drift-guard-skill>/);
-  assert.match(renderedMessages, /summarized for LiMa Router compatibility/);
+  assert.match(renderedMessages, /已为 LiMa Router 兼容性压缩为摘要/);
   assert.doesNotMatch(renderedMessages, /RAW_PROJECT_RULE_MARKER_SHOULD_NOT_BE_SENT/);
 });
 

@@ -68,7 +68,7 @@ test("findExactSlashCommand returns built-in /init", () => {
   const item = findExactSlashCommand(items, "/init");
   assert.ok(item);
   assert.equal(item?.kind, "init");
-  assert.equal(item?.description, "Initialize an AGENTS.md file with instructions for LLM");
+  assert.equal(item?.description, "初始化 AGENTS.md 项目指令文件");
 });
 
 test("findExactSlashCommand returns built-in /continue", () => {
@@ -97,6 +97,7 @@ test("findExactSlashCommand returns built-in /model", () => {
   const item = findExactSlashCommand(items, "/model");
   assert.ok(item);
   assert.equal(item?.kind, "model");
+  assert.doesNotMatch(item?.description ?? "", /Select model|thinking mode/i);
 });
 
 test("findExactSlashCommand returns built-in /lima", () => {
