@@ -37,6 +37,12 @@ test("buildWelcomeTips includes built-in slash commands and loaded skills", () =
     tips.some((tip) => /Send the prompt|Quit LiMa Code CLI/.test(tip.description)),
     false
   );
+  assert.equal(
+    tips.some((tip) =>
+      /Tips:|Type your message|enter send|shift\+enter newline/i.test(`${tip.label} ${tip.description}`)
+    ),
+    false
+  );
 });
 
 test("buildWelcomeActions makes the first-run workflow explicit", () => {

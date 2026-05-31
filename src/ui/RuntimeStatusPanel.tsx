@@ -39,7 +39,7 @@ export function RuntimeStatusPanel({ viewModel, width }: RuntimeStatusPanelProps
 
   if (viewModel.layoutMode === "medium") {
     const usageLine = viewModel.items
-      .filter((item) => ["Token", "Cache", "Req", "Tools", "MCP"].includes(item.label))
+      .filter((item) => ["Token", "缓存", "请求", "工具", "MCP"].includes(item.label))
       .map((item) => `${item.label} ${item.value}`)
       .join(" · ");
     return (

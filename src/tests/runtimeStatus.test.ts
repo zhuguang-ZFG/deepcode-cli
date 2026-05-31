@@ -80,17 +80,19 @@ test("buildRuntimeStatusViewModel exposes waiting first token state and cache us
   assert.deepEqual(
     model.items.map((item) => [item.label, item.value]),
     [
-      ["Router", "等待首 token 42s"],
-      ["Model", "lima-1.3"],
-      ["Thinking", "off"],
+      ["路由", "等待首 token 42s"],
+      ["模型", "lima-1.3"],
+      ["思考", "关闭"],
       ["Token", "本轮 1,200 / 入 1,200 / 出 0"],
-      ["Cache", "1,188 (99.0%)"],
-      ["Req", "1 · retry 1/2"],
-      ["Tools", "0 running"],
-      ["MCP", "1/2 ready"],
-      ["Risk", "MCP failed"],
+      ["缓存", "1,188 (99.0%)"],
+      ["请求", "1 · 重试 1/2"],
+      ["工具", "0 个运行中"],
+      ["MCP", "1/2 就绪"],
+      ["风险", "MCP 失败"],
     ]
   );
+  const rendered = model.items.map((item) => `${item.label}: ${item.value}`).join("\n");
+  assert.doesNotMatch(rendered, /Router|Model:|Thinking|Tools|Risk|ready|configured|running|none|off|retry/i);
 });
 
 test("buildRuntimeStatusViewModel surfaces process and failure layers", () => {
@@ -120,8 +122,8 @@ test("buildRuntimeStatusViewModel surfaces process and failure layers", () => {
   });
 
   assert.equal(model.phaseLabel, "失败");
-  assert.equal(model.items.find((item) => item.label === "Tools")?.value, "1 running · npm.cmd test · 1m5s");
-  assert.equal(model.items.find((item) => item.label === "Risk")?.value, "402 quota/balance");
+  assert.equal(model.items.find((item) => item.label === "工具")?.value, "1 个运行中 · npm.cmd test · 1m5s");
+  assert.equal(model.items.find((item) => item.label === "风险")?.value, "402 额度/余额");
 });
 
 function readyMcp(name: string): McpServerStatus {

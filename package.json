@@ -1,6 +1,6 @@
 {
   "name": "lima-code",
-  "version": "0.1.24",
+  "version": "0.1.25",
   "description": "LiMa Code - vibe coding with LiMa in your terminal",
   "license": "MIT",
   "type": "module",

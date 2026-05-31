@@ -72,37 +72,37 @@ export function buildRuntimeStatusViewModel(input: RuntimeStatusInput): RuntimeS
 
   const retryText =
     typeof progress?.attempt === "number" && typeof progress.maxAttempts === "number" && progress.maxAttempts > 1
-      ? ` · retry ${progress.attempt}/${progress.maxAttempts}`
+      ? ` · 重试 ${progress.attempt}/${progress.maxAttempts}`
       : "";
 
   const items: RuntimeStatusItem[] = [
     {
-      label: "Router",
+      label: "路由",
       value: elapsedLabel ? `${phase} ${elapsedLabel}` : phase,
       tone: entry?.status === "failed" ? "danger" : input.busy ? "warn" : "normal",
     },
-    { label: "Model", value: model },
-    { label: "Thinking", value: formatThinking(input.settings) },
+    { label: "模型", value: model },
+    { label: "思考", value: formatThinking(input.settings) },
     {
       label: "Token",
       value: `本轮 ${formatRuntimeMetric(entry?.activeTokens ?? 0)} / 入 ${formatRuntimeMetric(
         usage.promptTokens
       )} / 出 ${formatRuntimeMetric(usage.completionTokens)}`,
     },
-    { label: "Cache", value: formatCacheSummary(usage) },
-    { label: "Req", value: `${formatRuntimeMetric(usage.totalReqs)}${retryText}` },
-    { label: "Tools", value: formatProcessSummary(processes, input.now) },
-    { label: "MCP", value: mcp.total > 0 ? `${mcp.ready}/${mcp.total} ready` : "0 configured" },
-    { label: "Risk", value: risk.label, tone: risk.tone },
+    { label: "缓存", value: formatCacheSummary(usage) },
+    { label: "请求", value: `${formatRuntimeMetric(usage.totalReqs)}${retryText}` },
+    { label: "工具", value: formatProcessSummary(processes, input.now) },
+    { label: "MCP", value: mcp.total > 0 ? `${mcp.ready}/${mcp.total} 就绪` : "0 个已配置" },
+    { label: "风险", value: risk.label, tone: risk.tone },
   ];
 
   const visible =
     input.busy || Boolean(entry) || Boolean(progress) || Boolean(input.errorLine) || hasProcesses(processes);
-  const summaryParts = [entry?.status ?? (input.busy ? "processing" : "idle")];
+  const summaryParts = [formatSessionStatus(entry?.status ?? (input.busy ? "processing" : "idle"))];
   if (phase !== entry?.status) {
     summaryParts.push(elapsedLabel ? `${phase} ${elapsedLabel}` : phase);
   }
-  summaryParts.push(`model ${model}`);
+  summaryParts.push(`模型 ${model}`);
 
   return {
     visible,
@@ -124,15 +124,36 @@ function resolvePhaseLabel(input: {
     return "失败";
   }
   if (hasProcesses(input.processes)) {
-    return "tool_running";
+    return "工具运行中";
   }
   if (!input.progress) {
-    return input.busy ? "processing" : (input.entry?.status ?? "idle");
+    return formatSessionStatus(input.busy ? "processing" : (input.entry?.status ?? "idle"));
   }
   if (input.progress.estimatedTokens <= 0) {
     return input.progress.transport === "non_stream" ? "等待首 token" : "等待首 token";
   }
-  return "streaming";
+  return "流式输出";
+}
+
+function formatSessionStatus(status: string): string {
+  switch (status) {
+    case "failed":
+      return "失败";
+    case "pending":
+      return "待处理";
+    case "processing":
+      return "处理中";
+    case "waiting_for_user":
+      return "等待用户";
+    case "completed":
+      return "已完成";
+    case "interrupted":
+      return "已中断";
+    case "idle":
+      return "空闲";
+    default:
+      return status;
+  }
 }
 
 function resolveElapsedLabel(input: {
@@ -174,9 +195,9 @@ function formatThinking(settings: RuntimeStatusInput["settings"]): string {
     return "-";
   }
   if (!settings.thinkingEnabled) {
-    return "off";
+    return "关闭";
   }
-  return settings.reasoningEffort ? `on · ${settings.reasoningEffort}` : "on";
+  return settings.reasoningEffort ? `开启 · ${settings.reasoningEffort}` : "开启";
 }
 
 function formatCacheSummary(usage: UsageSummary): string {
@@ -191,12 +212,12 @@ function formatCacheSummary(usage: UsageSummary): string {
 
 function formatProcessSummary(processes: SessionEntry["processes"], now: number): string {
   if (!processes || processes.size === 0) {
-    return "0 running";
+    return "0 个运行中";
   }
   const first = getFirstProcess(processes);
   const elapsed = first ? formatElapsed(first.startTime, now) : null;
   const command = first?.command ? ` · ${truncateText(first.command, 24)}` : "";
-  return `${processes.size} running${command}${elapsed ? ` · ${elapsed}` : ""}`;
+  return `${processes.size} 个运行中${command}${elapsed ? ` · ${elapsed}` : ""}`;
 }
 
 function resolveRisk(
@@ -205,26 +226,26 @@ function resolveRisk(
 ): { label: string; tone: RuntimeStatusItem["tone"] } {
   if (rawReason) {
     if (/\b401\b|unauthorized|api key/i.test(rawReason)) {
-      return { label: "401 auth", tone: "danger" };
+      return { label: "401 认证", tone: "danger" };
     }
     if (/\b402\b|insufficient balance|quota|balance/i.test(rawReason)) {
-      return { label: "402 quota/balance", tone: "danger" };
+      return { label: "402 额度/余额", tone: "danger" };
     }
     if (/\b429\b|rate limit/i.test(rawReason)) {
-      return { label: "429 rate limit", tone: "warn" };
+      return { label: "429 限流", tone: "warn" };
     }
     if (/empty response|空响应/i.test(rawReason)) {
-      return { label: "empty response", tone: "warn" };
+      return { label: "空响应", tone: "warn" };
     }
     if (/timeout|timed out|超时/i.test(rawReason)) {
-      return { label: "timeout", tone: "warn" };
+      return { label: "超时", tone: "warn" };
     }
     return { label: truncateText(rawReason, 32), tone: "danger" };
   }
   if (mcp.failed > 0) {
-    return { label: "MCP failed", tone: "warn" };
+    return { label: "MCP 失败", tone: "warn" };
   }
-  return { label: "none", tone: "success" };
+  return { label: "无", tone: "success" };
 }
 
 function summarizeMcp(statuses: McpServerStatus[]): { ready: number; failed: number; total: number } {
