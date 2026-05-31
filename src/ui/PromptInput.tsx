@@ -190,20 +190,14 @@ export const PromptInput = React.memo(function PromptInput({
   const hasRunningProcess = runningProcesses && runningProcesses.size > 0;
   const hasCollapsedMarkers = hasActivePasteMarkers(buffer.text, pastesRef.current);
   const hasExpandedRegions = expandedRegionsRef.current.size > 0;
-  const processOrPasteHint = hasRunningProcess
-    ? " · ctrl+o view output"
-    : hasCollapsedMarkers
-      ? " · ctrl+o expand"
-      : hasExpandedRegions
-        ? " · ctrl+o collapse"
-        : "";
-  const footerText = statusMessage
-    ? statusMessage
-    : busy
-      ? loadingText && loadingText.trim()
-        ? `${loadingText}${processOrPasteHint}`
-        : `esc to interrupt · ctrl+c to cancel input${processOrPasteHint}`
-      : `enter send · shift+enter newline · @ files · ctrl+v image · / commands · ctrl+d exit${processOrPasteHint}`;
+  const footerText = buildPromptFooterText({
+    statusMessage,
+    busy,
+    loadingText,
+    hasRunningProcess: Boolean(hasRunningProcess),
+    hasCollapsedMarkers,
+    hasExpandedRegions,
+  });
   useTerminalFocusReporting(stdout, !disabled);
   useTerminalExtendedKeys(stdout, !disabled);
   useBracketedPaste(stdout, !disabled);
@@ -324,7 +318,7 @@ export const PromptInput = React.memo(function PromptInput({
         }
         lastCtrlDAt.current = now;
         setPendingExit(true);
-        setStatusMessage("press ctrl+d again to exit");
+        setStatusMessage("再次按 ctrl+d 退出");
         return;
       }
 
@@ -338,7 +332,7 @@ export const PromptInput = React.memo(function PromptInput({
           pastesRef.current.clear();
           expandedRegionsRef.current.clear();
         } else {
-          setStatusMessage("press ctrl+d to exit");
+          setStatusMessage("按 ctrl+d 退出");
         }
         return;
       }
@@ -925,6 +919,32 @@ export const PromptInput = React.memo(function PromptInput({
 });
 
 export const IMAGE_ATTACHMENT_CLEAR_HINT = "ctrl+x clear images";
+
+export function buildPromptFooterText(input: {
+  busy: boolean;
+  loadingText?: string | null;
+  statusMessage?: string | null;
+  hasRunningProcess?: boolean;
+  hasCollapsedMarkers?: boolean;
+  hasExpandedRegions?: boolean;
+}): string {
+  const processOrPasteHint = input.hasRunningProcess
+    ? " · ctrl+o 查看输出"
+    : input.hasCollapsedMarkers
+      ? " · ctrl+o 展开粘贴"
+      : input.hasExpandedRegions
+        ? " · ctrl+o 收起粘贴"
+        : "";
+  if (input.statusMessage) {
+    return input.statusMessage;
+  }
+  if (input.busy) {
+    return input.loadingText && input.loadingText.trim()
+      ? `${input.loadingText}${processOrPasteHint}`
+      : `esc 中断 · ctrl+c 取消输入${processOrPasteHint}`;
+  }
+  return `enter 发送 · shift+enter 换行 · @ 文件 · ctrl+v 图片 · / 命令 · ctrl+d 退出${processOrPasteHint}`;
+}
 
 export function formatImageAttachmentStatus(count: number): string {
   if (count <= 0) {

@@ -31,6 +31,7 @@ export {
   getPromptReturnKeyAction,
   renderBufferWithCursor,
   buildInitPromptSubmission,
+  buildPromptFooterText,
   useTerminalInput,
   parseTerminalInput,
   dispatchTerminalInput,

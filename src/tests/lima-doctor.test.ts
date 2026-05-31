@@ -31,9 +31,11 @@ test("runLiMaDoctor passes required checks for a configured reachable server", a
 
   assert.equal(report.ok, true);
   assert.equal(fetched, 1);
-  assert.match(message, /LiMa doctor/);
-  assert.match(message, /\[pass\] server_reachable/);
+  assert.match(message, /LiMa doctor：就绪/);
+  assert.match(message, /\[通过\] 服务连通/);
+  assert.match(message, /pending-task 接口可访问/);
   assert.doesNotMatch(message, /bot-token-secret/);
+  assert.doesNotMatch(message, /server_reachable/);
 });
 
 test("runLiMaDoctor fails when server config is missing and skips network checks", async () => {

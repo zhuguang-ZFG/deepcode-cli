@@ -38,9 +38,7 @@ export async function runLiMaDoctor(options: LiMaDoctorOptions): Promise<LiMaDoc
   checks.push({
     name: "server_config",
     status: configured ? "pass" : "fail",
-    detail: configured
-      ? "LiMa Server URL and API key are configured."
-      : "Set LIMA_CODE_SERVER_URL and LIMA_CODE_API_KEY.",
+    detail: configured ? "LiMa Server URL 和 API key 已配置。" : "请设置 LIMA_CODE_SERVER_URL 和 LIMA_CODE_API_KEY。",
   });
 
   if (configured) {
@@ -49,7 +47,7 @@ export async function runLiMaDoctor(options: LiMaDoctorOptions): Promise<LiMaDoc
     checks.push({
       name: "server_reachable",
       status: "skip",
-      detail: "Skipped because LiMa Server configuration is missing.",
+      detail: "已跳过：LiMa Server 配置缺失。",
     });
   }
 
@@ -65,11 +63,37 @@ export async function runLiMaDoctor(options: LiMaDoctorOptions): Promise<LiMaDoc
 }
 
 export function formatLiMaDoctorReport(report: LiMaDoctorReport): string {
-  const lines = [`LiMa doctor: ${report.ok ? "ready" : "needs attention"}`];
+  const lines = [`LiMa doctor：${report.ok ? "就绪" : "需要处理"}`];
   for (const check of report.checks) {
-    lines.push(`[${check.status}] ${check.name}: ${check.detail}`);
+    lines.push(`[${formatDoctorStatus(check.status)}] ${formatDoctorCheckName(check.name)}: ${check.detail}`);
   }
   return redactTelegramText(lines.join("\n"));
+}
+
+function formatDoctorStatus(status: LiMaDoctorStatus): string {
+  switch (status) {
+    case "pass":
+      return "通过";
+    case "warn":
+      return "警告";
+    case "fail":
+      return "失败";
+    case "skip":
+      return "跳过";
+  }
+}
+
+function formatDoctorCheckName(name: string): string {
+  const labels: Record<string, string> = {
+    project_root: "项目目录",
+    server_config: "服务配置",
+    server_reachable: "服务连通",
+    worker_stop: "停止标记",
+    telegram_outbound: "Telegram 通知",
+    project_skill_rules: "项目技能规则",
+    audit_log: "本地审计日志",
+  };
+  return labels[name] ?? name;
 }
 
 function checkProjectRoot(projectRoot: string): LiMaDoctorCheck {
@@ -77,9 +101,9 @@ function checkProjectRoot(projectRoot: string): LiMaDoctorCheck {
     const stat = fs.statSync(projectRoot);
     return stat.isDirectory()
       ? { name: "project_root", status: "pass", detail: projectRoot }
-      : { name: "project_root", status: "fail", detail: `${projectRoot} is not a directory.` };
+      : { name: "project_root", status: "fail", detail: `${projectRoot} 不是目录。` };
   } catch {
-    return { name: "project_root", status: "fail", detail: `${projectRoot} does not exist.` };
+    return { name: "project_root", status: "fail", detail: `${projectRoot} 不存在。` };
   }
 }
 
@@ -91,7 +115,7 @@ async function checkServerReachable(client: LiMaDoctorClient): Promise<LiMaDocto
   return {
     name: "server_reachable",
     status: "pass",
-    detail: pending.value ? `Pending task visible: ${pending.value.task_id}` : "Pending-task endpoint is reachable.",
+    detail: pending.value ? `可见待处理任务: ${pending.value.task_id}` : "pending-task 接口可访问。",
   };
 }
 
@@ -101,29 +125,29 @@ function checkWorkerStop(projectRoot: string): LiMaDoctorCheck {
     return {
       name: "worker_stop",
       status: "fail",
-      detail: `Worker stop marker is pending: ${stop.reason}`,
+      detail: `存在 worker 停止标记: ${stop.reason}`,
     };
   }
-  return { name: "worker_stop", status: "pass", detail: "No worker stop marker is pending." };
+  return { name: "worker_stop", status: "pass", detail: "没有待处理的 worker 停止标记。" };
 }
 
 function checkTelegram(env: NodeJS.ProcessEnv | undefined): LiMaDoctorCheck {
   const config = readLiMaTelegramConfig(env);
   return config.configured
-    ? { name: "telegram_outbound", status: "pass", detail: "Telegram outbound notification config is present." }
-    : { name: "telegram_outbound", status: "warn", detail: "Telegram outbound notification config is optional." };
+    ? { name: "telegram_outbound", status: "pass", detail: "Telegram 出站通知配置已存在。" }
+    : { name: "telegram_outbound", status: "warn", detail: "Telegram 出站通知未配置（可选）。" };
 }
 
 function checkSkillRules(projectRoot: string): LiMaDoctorCheck {
   const file = path.join(projectRoot, ".lima-code", "skill-rules.json");
   return fs.existsSync(file)
-    ? { name: "project_skill_rules", status: "pass", detail: ".lima-code/skill-rules.json is present." }
-    : { name: "project_skill_rules", status: "warn", detail: "No project skill rules file found." };
+    ? { name: "project_skill_rules", status: "pass", detail: ".lima-code/skill-rules.json 已存在。" }
+    : { name: "project_skill_rules", status: "warn", detail: "未找到项目 skill rules 文件。" };
 }
 
 function checkAuditLog(projectRoot: string): LiMaDoctorCheck {
   const file = path.join(projectRoot, ".lima-code", "audit.jsonl");
   return fs.existsSync(file)
-    ? { name: "audit_log", status: "pass", detail: ".lima-code/audit.jsonl is present." }
-    : { name: "audit_log", status: "warn", detail: "No local LiMa audit log found yet." };
+    ? { name: "audit_log", status: "pass", detail: ".lima-code/audit.jsonl 已存在。" }
+    : { name: "audit_log", status: "warn", detail: "还没有本地 LiMa 审计日志。" };
 }

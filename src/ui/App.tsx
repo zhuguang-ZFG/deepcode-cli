@@ -511,12 +511,12 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
           }
           if (allMessages.length > 0) {
             process.stdout.write("\n\n");
-            process.stdout.write(chalk.dim("Press ESC to exit raw mode"));
+            process.stdout.write(chalk.dim("按 ESC 退出原始模式"));
           } else {
             process.stdout.write("\n");
-            process.stdout.write(chalk.dim("(No messages in this session yet. Start chatting to see them here.)"));
+            process.stdout.write(chalk.dim("(当前会话还没有消息。发送一条消息后会显示在这里。)"));
             process.stdout.write("\n\n");
-            process.stdout.write(chalk.dim("Press ESC to exit raw mode"));
+            process.stdout.write(chalk.dim("按 ESC 退出原始模式"));
           }
         } else if (activeSessionId) {
           // Switch to chat view to render messages.
@@ -559,12 +559,12 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
       }
       if (allMessages.length > 0) {
         process.stdout.write("\n\n");
-        process.stdout.write(chalk.dim("Press ESC to exit raw mode"));
+        process.stdout.write(chalk.dim("按 ESC 退出原始模式"));
       } else {
         process.stdout.write("\n");
-        process.stdout.write(chalk.dim("(No messages in this session yet. Start chatting to see them here.)"));
+        process.stdout.write(chalk.dim("(当前会话还没有消息。发送一条消息后会显示在这里。)"));
         process.stdout.write("\n\n");
-        process.stdout.write(chalk.dim("Press ESC to exit raw mode"));
+        process.stdout.write(chalk.dim("按 ESC 退出原始模式"));
       }
       return;
     }
@@ -782,7 +782,7 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
               onRawModeChange={handleRawModeChange}
               onInterrupt={handleInterrupt}
               onToggleProcessStdout={handleToggleProcessStdout}
-              placeholder="Type your message..."
+              placeholder="输入消息..."
             />
           </Box>
           {runtimeStatus.visible && runtimeStatus.layoutMode === "wide" ? (

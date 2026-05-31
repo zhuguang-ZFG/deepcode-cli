@@ -9,6 +9,7 @@ function stripAnsi(text: string): string {
 import {
   IMAGE_ATTACHMENT_CLEAR_HINT,
   addUniqueSkill,
+  buildPromptFooterText,
   formatImageAttachmentStatus,
   formatSelectedSkillsStatus,
   getPromptCursorPlacement,
@@ -148,6 +149,17 @@ test("prompt return key action inserts newline on shift+enter", () => {
   assert.equal(key.return, true);
   assert.equal(key.shift, true);
   assert.equal(getPromptReturnKeyAction(key), "newline");
+});
+
+test("buildPromptFooterText renders Chinese operator hints", () => {
+  assert.equal(
+    buildPromptFooterText({ busy: false }),
+    "enter 发送 · shift+enter 换行 · @ 文件 · ctrl+v 图片 · / 命令 · ctrl+d 退出"
+  );
+  assert.equal(
+    buildPromptFooterText({ busy: true, loadingText: "", hasRunningProcess: true }),
+    "esc 中断 · ctrl+c 取消输入 · ctrl+o 查看输出"
+  );
 });
 
 test("parseTerminalInput recognizes alternate shifted return sequences", () => {

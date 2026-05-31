@@ -809,8 +809,9 @@ test("executeLiMaCommand runs doctor without executing tasks", async () => {
 
   assert.equal(response.ok, true);
   assert.equal(pendingChecks, 1);
-  assert.match(response.message, /LiMa doctor/);
-  assert.match(response.message, /server_reachable/);
+  assert.match(response.message, /LiMa doctor：就绪/);
+  assert.match(response.message, /服务连通/);
+  assert.doesNotMatch(response.message, /server_reachable/);
 });
 
 test("executeLiMaCommand fails safely for malformed lima commands", async () => {
