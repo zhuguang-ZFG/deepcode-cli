@@ -72,6 +72,10 @@ export async function executeLiMaCommand(
     };
   }
 
+  if (parsed.command.kind === "start") {
+    return { ok: true, message: formatLiMaStartWorkbench(options.projectRoot, client.isConfigured()) };
+  }
+
   if (parsed.command.kind === "doctor") {
     const report = await runLiMaDoctor({ projectRoot: options.projectRoot, client });
     return { ok: report.ok, message: formatLiMaDoctorReport(report) };
@@ -211,6 +215,25 @@ function buildLocalReviewTask(projectRoot: string): LiMaTaskRunnerRequest {
     max_runtime_sec: 300,
     mode: "review",
   };
+}
+
+function formatLiMaStartWorkbench(projectRoot: string, serverConfigured: boolean): string {
+  return [
+    "LiMa Code workbench",
+    `Project: ${projectRoot}`,
+    `LiMa Server configured: ${serverConfigured ? "yes" : "no"}`,
+    "",
+    "Start here:",
+    "1. /lima doctor",
+    "2. /lima review",
+    '3. /lima test --cmd "npm run check"',
+    "4. Ask: 修复/审查/部署这个项目",
+    "",
+    "Server tasks:",
+    "/lima next",
+    "/lima work --once",
+    "/lima work --loop --max-tasks <n>",
+  ].join("\n");
 }
 
 function buildLocalPlanTask(projectRoot: string): LiMaTaskRunnerRequest {

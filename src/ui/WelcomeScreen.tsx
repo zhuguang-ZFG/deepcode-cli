@@ -28,9 +28,15 @@ const SHORTCUT_TIPS = [
   { label: "Ctrl+D twice", description: "Quit LiMa Code CLI" },
 ];
 
+export type WelcomeAction = {
+  command: string;
+  description: string;
+};
+
 export function WelcomeScreen({ projectRoot, settings, skills, width }: WelcomeScreenProps): React.ReactElement {
   const { version } = useAppContext();
   const tips = useMemo(() => buildWelcomeTips(skills), [skills]);
+  const actions = useMemo(() => buildWelcomeActions(), []);
   const [tipIndex] = useState(() => randomTipIndex(tips.length));
   const compact = width < TITLE_PANEL_WIDTH + 42;
   const cwd = formatHomeRelativePath(projectRoot);
@@ -71,6 +77,17 @@ export function WelcomeScreen({ projectRoot, settings, skills, width }: WelcomeS
             <SettingRow label="CWD" value={cwd} />
           </Box>
         </Box>
+      </Box>
+
+      <Box flexDirection="column" width={panelWidth} paddingX={1} marginTop={1}>
+        {actions.map((action) => (
+          <Box key={action.command}>
+            <Box width={compact ? 24 : 34}>
+              <Text color={"#229ac3e6"}>{action.command}</Text>
+            </Box>
+            <Text dimColor>{action.description}</Text>
+          </Box>
+        ))}
       </Box>
 
       <Box flexDirection="column" width={panelWidth} paddingX={1}>
@@ -124,6 +141,14 @@ export function buildWelcomeTips(skills: SkillInfo[]): Array<{ label: string; de
   return [
     ...slashTips,
     ...SHORTCUT_TIPS.filter((tip) => !BUILTIN_SLASH_COMMANDS.some((command) => command.label === tip.label)),
+  ];
+}
+
+export function buildWelcomeActions(): WelcomeAction[] {
+  return [
+    { command: "/lima start", description: "Recommended workbench for the current project" },
+    { command: "/lima doctor", description: "Verify server, key, worker stop marker, and local audit state" },
+    { command: "Ask: 修复/审查/部署这个项目", description: "Start a direct project task in chat" },
   ];
 }
 

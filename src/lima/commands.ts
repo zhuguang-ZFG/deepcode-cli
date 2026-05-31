@@ -1,6 +1,7 @@
 export type LiMaCommand =
   | { kind: "connect" }
   | { kind: "status" }
+  | { kind: "start" }
   | { kind: "doctor" }
   | { kind: "next" }
   | { kind: "plan" }
@@ -49,6 +50,9 @@ export function parseLiMaCommand(input: string): LiMaCommandParseResult {
   }
   if (subcommand === "status") {
     return { ok: true, command: { kind: "status" } };
+  }
+  if (subcommand === "start") {
+    return { ok: true, command: { kind: "start" } };
   }
   if (subcommand === "doctor") {
     return { ok: true, command: { kind: "doctor" } };
@@ -106,6 +110,7 @@ export function formatLiMaCommandHelp(): string {
   return [
     "/lima connect",
     "/lima status",
+    "/lima start",
     "/lima doctor",
     "/lima plan",
     "/lima test [--cmd <command>]",
@@ -250,5 +255,5 @@ function readRestCommand(args: string[], defaultValue: string): string {
 }
 
 function usageText(): string {
-  return "Usage: /lima connect | /lima status | /lima doctor | /lima plan | /lima test [--cmd <command>] | /lima next | /lima probe [--json] | /lima drone [--max-tasks <n>] [--risk] | /lima audit [--last <n>] | /lima daemon status | /lima daemon stop | /lima work --once | /lima work --loop --max-tasks <n> [--max-minutes <n>] | /lima task <task_id> | /lima review | /lima ship";
+  return "Usage: /lima connect | /lima status | /lima start | /lima doctor | /lima plan | /lima test [--cmd <command>] | /lima next | /lima probe [--json] | /lima drone [--max-tasks <n>] [--risk] | /lima audit [--last <n>] | /lima daemon status | /lima daemon stop | /lima work --once | /lima work --loop --max-tasks <n> [--max-minutes <n>] | /lima task <task_id> | /lima review | /lima ship";
 }

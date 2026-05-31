@@ -59,6 +59,7 @@ if (args.includes("--help") || args.includes("-h")) {
       "LiMa Worker Commands:",
       "  /lima connect    Connect to LiMa server",
       "  /lima status     Show worker status",
+      "  /lima start      Show project workbench",
       "  /lima doctor     Check configuration",
       "  /lima plan       Create implementation plan",
       "  /lima test       Run tests",

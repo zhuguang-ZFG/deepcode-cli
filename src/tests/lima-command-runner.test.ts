@@ -314,6 +314,21 @@ test("executeLiMaCommand runs local plan stage without server submission", async
   assert.match(response.message, /local-plan/);
 });
 
+test("executeLiMaCommand start returns an operator workbench", async () => {
+  const response = await executeLiMaCommand("/lima start", {
+    projectRoot: process.cwd(),
+    client: inertClient(),
+    appendAudit: () => undefined,
+  });
+
+  assert.equal(response.ok, true);
+  assert.match(response.message, /LiMa Code workbench/);
+  assert.match(response.message, /\/lima doctor/);
+  assert.match(response.message, /\/lima review/);
+  assert.match(response.message, /\/lima test --cmd/);
+  assert.match(response.message, /Ask:/);
+});
+
 test("executeLiMaCommand runs local test stage with explicit command", async () => {
   const response = await executeLiMaCommand("/lima test --cmd npm run check", {
     projectRoot: process.cwd(),

@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as os from "os";
 import * as path from "path";
-import { buildWelcomeTips, formatHomeRelativePath } from "../ui";
+import { buildWelcomeActions, buildWelcomeTips, formatHomeRelativePath } from "../ui";
 
 test("formatHomeRelativePath returns tilde for the home directory", () => {
   const home = path.resolve("/Users/example");
@@ -33,4 +33,14 @@ test("buildWelcomeTips includes built-in slash commands and loaded skills", () =
   assert.ok(labels.includes("/new"));
   assert.ok(labels.includes("/loaded"));
   assert.equal(labels.includes("/fresh"), false);
+});
+
+test("buildWelcomeActions makes the first-run workflow explicit", () => {
+  const actions = buildWelcomeActions();
+
+  assert.deepEqual(
+    actions.map((action) => action.command),
+    ["/lima start", "/lima doctor", "Ask: 修复/审查/部署这个项目"]
+  );
+  assert.match(actions[0]?.description ?? "", /recommended/i);
 });
