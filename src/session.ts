@@ -289,6 +289,7 @@ export type LlmStreamProgress = {
   formattedTokens: string;
   phase: "start" | "update" | "end";
   transport?: "stream" | "non_stream";
+  model?: string;
   attempt?: number;
   maxAttempts?: number;
   timeoutMs?: number;
@@ -390,7 +391,7 @@ export class SessionManager {
     phase: LlmStreamProgress["phase"],
     sessionId?: string,
     transport?: LlmStreamProgress["transport"],
-    telemetry?: Pick<LlmStreamProgress, "attempt" | "maxAttempts" | "timeoutMs" | "lastError">
+    telemetry?: Pick<LlmStreamProgress, "attempt" | "maxAttempts" | "timeoutMs" | "lastError" | "model">
   ): void {
     this.onLlmStreamProgress?.({
       requestId,
@@ -437,7 +438,10 @@ export class SessionManager {
     const startedAtMs = Date.now();
     let estimatedTokens = 0;
     const transport = isLiMaRouterBaseURL(debug?.baseURL) ? "non_stream" : "stream";
-    this.emitLlmStreamProgress(requestId, startedAt, estimatedTokens, "start", sessionId, transport);
+    const progressModel = typeof request.model === "string" ? request.model : undefined;
+    this.emitLlmStreamProgress(requestId, startedAt, estimatedTokens, "start", sessionId, transport, {
+      model: progressModel,
+    });
 
     const streamRequest = {
       ...request,
@@ -461,6 +465,7 @@ export class SessionManager {
         attempt: 1,
         maxAttempts: maxRetries + 1,
         timeoutMs,
+        model: progressModel,
       });
       try {
         const response = await (

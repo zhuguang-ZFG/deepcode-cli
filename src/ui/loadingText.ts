@@ -33,12 +33,17 @@ export function buildLoadingText(input: LoadingTextInput): string {
 
   const elapsedSeconds = Math.floor(elapsedMs / 1000);
   if (progress.estimatedTokens <= 0) {
-    const waitLabel = progress.transport === "non_stream" ? "waiting for response" : "waiting for first token";
-    return `Thinking... (${elapsedSeconds}s) - ${waitLabel}${buildRequestTelemetryText(progress)}`;
+    const waitLabel =
+      progress.transport === "non_stream" ? "waiting for LiMa Router response" : "waiting for first token";
+    return `Thinking... (${elapsedSeconds}s) - ${waitLabel}${buildModelText(progress)}${buildRequestTelemetryText(progress)}`;
   }
 
   const tokens = progress.formattedTokens || "0";
-  return `Thinking... (${elapsedSeconds}s) - ${tokens} tokens`;
+  return `Thinking... (${elapsedSeconds}s) - ${tokens} tokens${buildModelText(progress)}`;
+}
+
+function buildModelText(progress: NonNullable<LoadingTextInput["progress"]>): string {
+  return progress.model ? ` [${progress.model}]` : "";
 }
 
 function buildRequestTelemetryText(progress: NonNullable<LoadingTextInput["progress"]>): string {

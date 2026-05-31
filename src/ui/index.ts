@@ -12,6 +12,7 @@ export {
   writeModelConfigSelection,
   resolveCurrentSettings,
   buildPromptDraftFromSessionMessage,
+  buildStatusLine,
 } from "./App";
 export { createOpenAIClient } from "../common/openai-client";
 export { default as AppContainer } from "./AppContainer";

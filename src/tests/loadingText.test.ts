@@ -57,10 +57,11 @@ test("buildLoadingText shows elapsed seconds and tokens once past the threshold"
       estimatedTokens: 850,
       formattedTokens: "850",
       phase: "update",
+      model: "test-model",
     },
     now,
   });
-  assert.equal(text, "Thinking... (5s) - 850 tokens");
+  assert.equal(text, "Thinking... (5s) - 850 tokens [test-model]");
 });
 
 test("buildLoadingText shows first-token wait when no stream text has arrived", () => {
@@ -90,10 +91,11 @@ test("buildLoadingText shows response wait for non-stream requests", () => {
       formattedTokens: "",
       phase: "update",
       transport: "non_stream",
+      model: "lima-1.3",
     },
     now,
   });
-  assert.equal(text, "Thinking... (4s) - waiting for response");
+  assert.equal(text, "Thinking... (4s) - waiting for LiMa Router response [lima-1.3]");
 });
 
 test("buildLoadingText shows non-stream timeout and retry telemetry", () => {
@@ -107,13 +109,14 @@ test("buildLoadingText shows non-stream timeout and retry telemetry", () => {
       formattedTokens: "",
       phase: "update",
       transport: "non_stream",
+      model: "lima-1.3",
       attempt: 1,
       maxAttempts: 2,
       timeoutMs: 90_000,
     },
     now,
   });
-  assert.equal(text, "Thinking... (4s) - waiting for response (try 1/2, timeout 1m30s)");
+  assert.equal(text, "Thinking... (4s) - waiting for LiMa Router response [lima-1.3] (try 1/2, timeout 1m30s)");
 });
 
 test("buildLoadingText falls back to Thinking... when timestamp is unparseable", () => {

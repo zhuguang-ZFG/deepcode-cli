@@ -8,6 +8,7 @@ import { createOpenAIClient } from "../common/openai-client";
 import {
   type LlmStreamProgress,
   type MessageMeta,
+  type ModelUsage,
   type SessionEntry,
   SessionManager,
   type SessionMessage,
@@ -814,16 +815,63 @@ function isCurrentSessionEmpty(sessionManager: SessionManager): boolean {
   return !activeSessionId || !sessionManager.getSession(activeSessionId);
 }
 
-function buildStatusLine(entry: SessionEntry): string {
-  const parts: string[] = [];
-  parts.push(`status: ${entry.status}`);
+export function buildStatusLine(entry: SessionEntry): string {
+  const parts: string[] = [`status: ${entry.status}`];
   if (typeof entry.activeTokens === "number" && entry.activeTokens > 0) {
-    parts.push(`tokens: ${entry.activeTokens}`);
+    parts.push(`tokens: ${entry.activeTokens.toLocaleString("en-US")}`);
+  }
+  const totals = sumStatusUsage(entry.usagePerModel);
+  if (totals.promptTokens > 0) {
+    parts.push(`input: ${totals.promptTokens.toLocaleString("en-US")}`);
+  }
+  if (totals.completionTokens > 0) {
+    parts.push(`output: ${totals.completionTokens.toLocaleString("en-US")}`);
+  }
+  if (totals.cachedTokens > 0) {
+    parts.push(`cache: ${totals.cachedTokens.toLocaleString("en-US")}`);
+  }
+  if (totals.totalReqs > 0) {
+    parts.push(`reqs: ${totals.totalReqs.toLocaleString("en-US")}`);
   }
   if (entry.failReason) {
     parts.push(`fail: ${entry.failReason}`);
   }
   return parts.join(" · ");
+}
+
+function sumStatusUsage(usagePerModel: Record<string, ModelUsage> | null): {
+  promptTokens: number;
+  completionTokens: number;
+  cachedTokens: number;
+  totalReqs: number;
+} {
+  const totals = {
+    promptTokens: 0,
+    completionTokens: 0,
+    cachedTokens: 0,
+    totalReqs: 0,
+  };
+  if (!usagePerModel) {
+    return totals;
+  }
+  for (const usage of Object.values(usagePerModel)) {
+    totals.promptTokens += numberField(usage.prompt_tokens);
+    totals.completionTokens += numberField(usage.completion_tokens);
+    totals.cachedTokens += extractCachedTokens(usage);
+    totals.totalReqs += numberField(usage.total_reqs);
+  }
+  return totals;
+}
+
+function extractCachedTokens(usage: ModelUsage): number {
+  const promptDetails = usage.prompt_tokens_details;
+  const cachedFromDetails =
+    promptDetails && typeof promptDetails.cached_tokens === "number" ? promptDetails.cached_tokens : 0;
+  return cachedFromDetails || numberField(usage.prompt_cache_hit_tokens);
+}
+
+function numberField(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
 
 export function readSettings(): DeepcodingSettings | null {
