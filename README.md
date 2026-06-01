@@ -60,43 +60,57 @@ lima-code
 ## 主要功能
 
 ### **Skills**
+
 LiMa Code CLI 支持 agent skills，允许您扩展助手的能力：
 
 - **User-level Skills**：从 `~/.agents/skills/` 目录中发现并激活 skills。
 - **Project-level Skills**：从 `./.agents/skills/` 目录中加载项目专属 skills，并兼容旧的 `./.deepcode/skills/` 目录。
 
 ### **LiMa Server 接入**
+
 - 默认推荐接入 LiMa 的 OpenAI-compatible endpoint。
 - LiMa Code 负责本地 coding worker 体验，LiMa Server 负责模型路由、记忆、健康检查和安全策略。
 - 支持 LiMa agent task contract、MCP preset 和任务结果归档的后续扩展。
 
 ### **OpenAI-compatible Provider**
+
 - 可直连 LiMa、DeepSeek、火山方舟或其他 OpenAI-compatible API。
 - 支持思考模式、推理强度、MCP、联网搜索和任务完成通知。
 
 ## 斜杠命令与按键功能
 
-| 斜杠命令        | 操作                               |
-|-------------|----------------------------------|
-| `/`         | 打开 skills / 命令菜单                 |
-| `/new`      | 开始新对话                            |
-| `/resume`   | 选择历史对话继续                         |
-| `/continue` | 继续当前对话，或选择历史对话恢复                 |
-| `/model`    | 切换模型、思考模式和推理强度                   |
-| `/raw`      | 切换显示模式（Normal / Lite / Raw 滚动回溯） |
-| `/init`     | 初始化 AGENTS.md 文件                 |
-| `/skills`   | 列出可用 skills                      |
-| `/mcp`      | 查看 MCP 服务器状态和可用工具                |
-| `/undo`     | 将代码和/或对话恢复到之前的状态                 |
-| `/exit`     | 退出（也可用连续 `Ctrl+D`）               |
+| 斜杠命令    | 操作                                                          |
+| ----------- | ------------------------------------------------------------- |
+| `/`         | 打开 skills / 命令菜单                                        |
+| `/new`      | 开始新对话                                                    |
+| `/resume`   | 选择历史对话继续                                              |
+| `/continue` | 继续当前对话，或选择历史对话恢复                              |
+| `/model`    | 切换模型、思考模式和推理强度                                  |
+| `/raw`      | 切换显示模式（Normal / Lite / Raw 滚动回溯）                  |
+| `/init`     | 初始化 AGENTS.md 文件                                         |
+| `/skills`   | 列出可用 skills                                               |
+| `/mcp`      | 查看 MCP 服务器状态和可用工具                                 |
+| `/lima`     | 打开 LiMa worker 命令入口，可输入 `/lima vibe` 查看推荐工作流 |
+| `/undo`     | 将代码和/或对话恢复到之前的状态                               |
+| `/exit`     | 退出（也可用连续 `Ctrl+D`）                                   |
 
-| 按键            | 操作                 |
-|---------------|--------------------|
-| `Enter`       | 发送消息               |
+### Vibe coding 工作流
+
+进入 TUI 后可以直接输入 `/lima vibe` 查看推荐路径：
+
+1. `/lima doctor`：检查 LiMa Server、本地配置和项目状态。
+2. `/lima plan`：把需求拆成可验证的实施计划。
+3. `/lima test`：运行项目测试或指定测试命令。
+4. `/lima review`：交付前审查当前 git diff。
+5. 直接提问：描述目标、约束和是否需要部署到 VPS。
+
+| 按键          | 操作                        |
+| ------------- | --------------------------- |
+| `Enter`       | 发送消息                    |
 | `Shift+Enter` | 插入换行（也可用 `Ctrl+J`） |
-| `Ctrl+V`      | 从剪贴板粘贴图片           |
-| `Esc`         | 中断当前模型回复           |
-| 连续 `Ctrl+D`   | 退出                 |
+| `Ctrl+V`      | 从剪贴板粘贴图片            |
+| `Esc`         | 中断当前模型回复            |
+| 连续 `Ctrl+D` | 退出                        |
 
 ## 推荐模型配置
 
@@ -104,7 +118,6 @@ LiMa Code CLI 支持 agent skills，允许您扩展助手的能力：
 - DeepSeek V4 系列
 - 火山方舟 Coding Plan
 - 任何其他 OpenAI-compatible 模型
-
 
 ## 常见问题
 

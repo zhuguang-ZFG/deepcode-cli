@@ -42,6 +42,7 @@ export function buildCliHelpText(): string {
       "  /lima connect    检查 LiMa Server 连接配置",
       "  /lima status     查看 worker 状态",
       "  /lima start      显示项目工作台",
+      "  /lima vibe       显示 vibe coding 工作流",
       "  /lima doctor     检查本地配置",
       "  /lima plan       生成实施计划",
       "  /lima test       运行测试",

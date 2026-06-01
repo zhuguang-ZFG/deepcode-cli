@@ -17,9 +17,6 @@ import {
   getTools,
   type ToolDefinition,
 } from "./prompt";
-// ContextManager types available for future integration (session.ts uses
-// upgraded compactSession with token-aware boundary finding directly).
-import { type PostUsageDecision, type FoldResult } from "./context-manager";
 import {
   ToolExecutor,
   type CreateOpenAIClient,
@@ -1637,8 +1634,9 @@ ${skillMd}
     const tailBudget = Math.floor(ctxMax * 0.2);
     const tokenEstimates = sessionMessages.map((m) => {
       let n = this.estimateStreamTokens(typeof m.content === "string" ? m.content : "");
-      if (m.role === "assistant" && Array.isArray(m.tool_calls) && m.tool_calls.length > 0) {
-        n += this.estimateStreamTokens(JSON.stringify(m.tool_calls));
+      const messageParams = m.messageParams as { tool_calls?: unknown[] } | null;
+      if (m.role === "assistant" && Array.isArray(messageParams?.tool_calls) && messageParams.tool_calls.length > 0) {
+        n += this.estimateStreamTokens(JSON.stringify(messageParams.tool_calls));
       }
       return n;
     });

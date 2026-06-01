@@ -146,9 +146,11 @@ export function buildWelcomeTips(skills: SkillInfo[]): Array<{ label: string; de
 
 export function buildWelcomeActions(): WelcomeAction[] {
   return [
-    { command: "/lima start", description: "推荐：打开当前项目工作台" },
-    { command: "/lima doctor", description: "检查服务、密钥、worker 停止标记与本地审计状态" },
-    { command: "提问: 修复/审查/部署这个项目", description: "直接在对话里发起项目任务" },
+    { command: "/lima doctor", description: "先确认服务、密钥、worker 和审计状态" },
+    { command: "/lima plan", description: "把想法整理成可执行实施计划" },
+    { command: "/lima test", description: "运行项目测试，快速发现断点" },
+    { command: "/lima review", description: "交付前审查变更、风险和证据" },
+    { command: "直接提问", description: "例如：修复登录报错并部署到 VPS 验证" },
   ];
 }
 

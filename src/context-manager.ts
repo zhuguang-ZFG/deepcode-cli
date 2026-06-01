@@ -14,7 +14,14 @@
  *   >90% at turn-start → pre-flight fold
  */
 
-import type { ChatMessage, ToolSpec } from "./types.js";
+export type ChatMessage = {
+  role: "system" | "user" | "assistant" | "tool";
+  content: string | null;
+  tool_calls?: unknown[];
+  [key: string]: unknown;
+};
+
+export type ToolSpec = Record<string, unknown>;
 
 // ── Fold threshold constants ────────────────────────────────────────────────
 
@@ -278,8 +285,8 @@ export class ContextManager {
     };
 
     const replacement = [summaryMsg, ...all.slice(boundary)];
-    deps.rewriteMessages(replacement);
-    deps.onLogRewrite?.();
+    this.deps.rewriteMessages(replacement);
+    this.deps.onLogRewrite?.();
 
     this._foldedThisTurn = true;
     return {

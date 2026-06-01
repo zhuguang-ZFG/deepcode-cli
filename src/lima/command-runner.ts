@@ -81,6 +81,10 @@ export async function executeLiMaCommand(
     return { ok: report.ok, message: formatLiMaDoctorReport(report) };
   }
 
+  if (parsed.command.kind === "vibe") {
+    return { ok: true, message: formatVibeWorkflowHelp() };
+  }
+
   if (parsed.command.kind === "plan") {
     const task = buildLocalPlanTask(options.projectRoot);
     const result = await runTask(task, { currentWorkspace: options.projectRoot, projectRoot: options.projectRoot });
@@ -232,6 +236,19 @@ function formatLiMaStartWorkbench(projectRoot: string, serverConfigured: boolean
     "/lima next",
     "/lima work --once",
     "/lima work --loop --max-tasks <n>",
+  ].join("\n");
+}
+
+export function formatVibeWorkflowHelp(): string {
+  return [
+    "LiMa Code vibe coding workflow:",
+    "1. /lima doctor  - confirm server, keys, worker, and audit state",
+    "2. /lima plan    - turn the idea into an implementation plan",
+    "3. /lima test    - run the project test command and inspect failures",
+    "4. /lima review  - review diff, risks, evidence, and next action",
+    "5. /lima ship    - final delivery check before handoff",
+    "",
+    "You can also type the goal directly, e.g. fix login error and deploy to VPS.",
   ].join("\n");
 }
 

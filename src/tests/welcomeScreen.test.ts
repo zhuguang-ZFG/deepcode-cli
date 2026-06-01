@@ -45,12 +45,14 @@ test("buildWelcomeTips includes built-in slash commands and loaded skills", () =
   );
 });
 
-test("buildWelcomeActions makes the first-run workflow explicit", () => {
+test("buildWelcomeActions makes the vibe coding workflow explicit", () => {
   const actions = buildWelcomeActions();
 
   assert.deepEqual(
     actions.map((action) => action.command),
-    ["/lima start", "/lima doctor", "提问: 修复/审查/部署这个项目"]
+    ["/lima doctor", "/lima plan", "/lima test", "/lima review", "直接提问"]
   );
-  assert.match(actions[0]?.description ?? "", /推荐/);
+  assert.match(actions[0]?.description ?? "", /服务/);
+  assert.match(actions[1]?.description ?? "", /实施计划/);
+  assert.match(actions[4]?.description ?? "", /VPS/);
 });

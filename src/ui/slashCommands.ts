@@ -76,7 +76,7 @@ export const BUILTIN_SLASH_COMMANDS: SlashCommandItem[] = [
     kind: "lima",
     name: "lima",
     label: "/lima",
-    description: "LiMa worker：连接、状态、检查、计划、测试、修复、取任务、审计、循环、审查、交付",
+    description: "LiMa worker：先用 /lima vibe 查看 doctor → plan → test → review 工作流",
   },
   {
     kind: "raw",

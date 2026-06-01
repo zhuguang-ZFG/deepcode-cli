@@ -105,6 +105,7 @@ test("findExactSlashCommand returns built-in /lima", () => {
   const item = findExactSlashCommand(items, "/lima");
   assert.ok(item);
   assert.equal(item?.kind, "lima");
+  assert.match(item?.description ?? "", /\/lima vibe/);
 });
 
 test("findExactSlashCommand returns built-in /raw", () => {

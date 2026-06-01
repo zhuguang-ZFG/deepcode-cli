@@ -28,7 +28,7 @@ const validResult: LiMaAgentTaskResult = {
 };
 
 test("LiMaAgentTaskClient reports missing server URL without throwing", async () => {
-  const client = new LiMaAgentTaskClient({ apiKey: "sk-test" });
+  const client = new LiMaAgentTaskClient({ serverUrl: "", apiKey: "sk-test" });
   const result = await client.fetchTask("task-1");
 
   assert.equal(result.ok, false);
@@ -36,7 +36,7 @@ test("LiMaAgentTaskClient reports missing server URL without throwing", async ()
 });
 
 test("LiMaAgentTaskClient reports missing API key without throwing", async () => {
-  const client = new LiMaAgentTaskClient({ serverUrl: "https://lima.example.com" });
+  const client = new LiMaAgentTaskClient({ serverUrl: "https://lima.example.com", apiKey: "" });
   const result = await client.fetchTask("task-1");
 
   assert.equal(result.ok, false);
