@@ -17,6 +17,9 @@ import {
   getTools,
   type ToolDefinition,
 } from "./prompt";
+// ContextManager types available for future integration (session.ts uses
+// upgraded compactSession with token-aware boundary finding directly).
+import { type PostUsageDecision, type FoldResult } from "./context-manager";
 import {
   ToolExecutor,
   type CreateOpenAIClient,
@@ -83,6 +86,19 @@ export function getCompactPromptTokenThreshold(model: string): number {
 export function extractPinnedConstraints(systemPrompt: string): string {
   const pattern = /# (?:HIGH PRIORITY constraints|User memory|Project memory)[\s\S]*?(?=\n# |\n---|$)/g;
   return Array.from(systemPrompt.matchAll(pattern), (m) => m[0]).join("\n\n");
+}
+
+/** Combine two AbortSignals — aborts when either fires. */
+function anySignal(a: AbortSignal, b: AbortSignal): AbortSignal {
+  const controller = new AbortController();
+  if (a.aborted || b.aborted) {
+    controller.abort();
+    return controller.signal;
+  }
+  const abort = () => controller.abort();
+  a.addEventListener("abort", abort, { once: true });
+  b.addEventListener("abort", abort, { once: true });
+  return controller.signal;
 }
 
 function isUsageRecord(value: unknown): value is Record<string, unknown> {
@@ -1594,6 +1610,10 @@ ${skillMd}
     }
   }
 
+  /**
+   * Context-aware compaction with token boundary finding, skill pin preservation,
+   * and pinned constraint extraction (ported from MiMo-Reasonix ContextManager).
+   */
   async compactSession(sessionId: string, signal?: AbortSignal): Promise<void> {
     this.throwIfAborted(signal);
     const { client, model, baseURL, thinkingEnabled, reasoningEffort, debugLogEnabled } = this.createOpenAIClient();
@@ -1610,28 +1630,60 @@ ${skillMd}
       return;
     }
 
-    const searchStart = Math.floor(startIndex + ((sessionMessages.length - startIndex) * 2) / 3);
-    let endIndex = -1;
-    for (let i = Math.max(searchStart, startIndex); i < sessionMessages.length; i += 1) {
-      if (sessionMessages[i].role !== "tool") {
-        endIndex = i;
-        break;
+    // Token-aware boundary finding (ported from ContextManager.fold):
+    // Scan backwards from end, accumulate token estimates, find the user-message
+    // boundary that fits within the tail budget (20% of ctxMax = ~25K for 128K models).
+    const ctxMax = DEEPSEEK_V4_MODELS.has(model) ? 512 * 1024 : 128 * 1024;
+    const tailBudget = Math.floor(ctxMax * 0.2);
+    const tokenEstimates = sessionMessages.map((m) => {
+      let n = this.estimateStreamTokens(typeof m.content === "string" ? m.content : "");
+      if (m.role === "assistant" && Array.isArray(m.tool_calls) && m.tool_calls.length > 0) {
+        n += this.estimateStreamTokens(JSON.stringify(m.tool_calls));
+      }
+      return n;
+    });
+    const totalEstimate = tokenEstimates.reduce((a, b) => a + b, 0);
+
+    let cumTokens = 0;
+    let endIndex = sessionMessages.length;
+    for (let i = sessionMessages.length - 1; i >= startIndex; i--) {
+      if (cumTokens + tokenEstimates[i]! > tailBudget) break;
+      cumTokens += tokenEstimates[i]!;
+      if (sessionMessages[i]!.role === "user") endIndex = i;
+    }
+    // Fallback: if token-aware scan didn't find a good boundary (e.g., all
+    // messages are very short, which happens in tests with minimal content),
+    // use the old hardcoded 2/3 split so compaction still works.
+    if (endIndex <= startIndex || endIndex >= sessionMessages.length) {
+      const searchStart = Math.floor(startIndex + ((sessionMessages.length - startIndex) * 2) / 3);
+      endIndex = sessionMessages.length;
+      for (let i = Math.max(searchStart, startIndex); i < sessionMessages.length; i += 1) {
+        if (sessionMessages[i]!.role !== "tool") {
+          endIndex = i;
+          break;
+        }
       }
     }
-    if (endIndex === -1 || endIndex <= startIndex) {
+    if (endIndex <= startIndex || endIndex >= sessionMessages.length) {
       return;
     }
+    const headTokens = totalEstimate - cumTokens;
+    if (headTokens < totalEstimate * 0.3) return; // refuse if savings < 30%
 
     const compactPrompt = getCompactPrompt(sessionMessages.slice(startIndex, endIndex));
     const thinkingOptions = buildThinkingRequestOptions(thinkingEnabled, baseURL, reasoningEffort);
-    const response = await this.createChatCompletionStream(
+
+    // 15s hard timeout for fold summary (ported from ContextManager.summarizeForFold)
+    const foldCtrl = new AbortController();
+    const timeout = setTimeout(() => foldCtrl.abort(), 15_000);
+    const summaryPromise = this.createChatCompletionStream(
       client,
       {
         model,
         messages: [{ role: "user", content: compactPrompt }],
         ...thinkingOptions,
       },
-      signal ? { signal } : undefined,
+      signal ? { signal: anySignal(signal, foldCtrl.signal) } : { signal: foldCtrl.signal },
       sessionId,
       {
         enabled: debugLogEnabled,
@@ -1640,6 +1692,15 @@ ${skillMd}
         params: { thinkingEnabled, reasoningEffort },
       }
     );
+
+    let response;
+    try {
+      response = await summaryPromise;
+    } catch {
+      return; // timeout or abort — skip fold
+    } finally {
+      if (timeout) clearTimeout(timeout);
+    }
     this.throwIfAborted(signal);
     const rawLlmResponse = response.choices?.[0]?.message?.content;
     const llmResponse = typeof rawLlmResponse === "string" ? rawLlmResponse : "";
