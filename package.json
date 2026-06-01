@@ -36,8 +36,7 @@
     "build": "npm run check && npm run bundle && node -e \"require('fs').chmodSync('dist/cli.js', 0o755)\"",
     "test": "node src/tests/run-tests.mjs",
     "test:single": "tsx --test",
-    "prepack": "npm run build",
-    "prepare": "npm run build"
+    "prepack": "npm run build"
   },
   "dependencies": {
     "chalk": "^5.6.2",

@@ -4,6 +4,7 @@ import reactHooks from "eslint-plugin-react-hooks";
 import prettierConfig from "eslint-config-prettier";
 
 export default tseslint.config(
+  { ignores: ["dist/**"] },
   // Base recommended rules from ESLint
   js.configs.recommended,
   // TypeScript recommended rules
@@ -50,5 +51,5 @@ export default tseslint.config(
     },
   },
   // Prettier config: disable conflicting ESLint rules, MUST be last
-  prettierConfig,
+  prettierConfig
 );
