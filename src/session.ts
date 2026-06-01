@@ -73,6 +73,18 @@ export function getCompactPromptTokenThreshold(model: string): number {
     : DEFAULT_COMPACT_PROMPT_TOKEN_THRESHOLD;
 }
 
+/**
+ * Extract pinned constraints from the system prompt — HIGH PRIORITY constraints,
+ * User memory, and Project memory blocks. These are appended to compaction
+ * summaries so critical instructions survive context folding.
+ *
+ * Ported from MiMo-Reasonix `ContextManager.extractPinnedConstraints()`.
+ */
+export function extractPinnedConstraints(systemPrompt: string): string {
+  const pattern = /# (?:HIGH PRIORITY constraints|User memory|Project memory)[\s\S]*?(?=\n# |\n---|$)/g;
+  return Array.from(systemPrompt.matchAll(pattern), (m) => m[0]).join("\n\n");
+}
+
 function isUsageRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
@@ -1647,15 +1659,22 @@ ${skillMd}
       sessionMessages[i] = { ...sessionMessages[i], compacted: true, updateTime: now };
     }
 
+    // Cache-friendly: use "assistant" role so the system prompt stays as the ONLY
+    // system message, preserving the immutable prefix for prompt caching (>99% hit rate).
+    // Pinned constraints (HIGH PRIORITY / User memory / Project memory) are appended
+    // so critical instructions survive the fold — same pattern as MiMo-Reasonix.
+    const pinned = extractPinnedConstraints(this.getSystemPromptText());
+    const pinnedTail = pinned ? `\n\n[PINNED CONSTRAINTS — preserved across compaction]\n\n${pinned}` : "";
+    const summaryContent = `Earlier conversation summary:\n\n${compactedSummary}${pinnedTail}`;
     const summaryMessage: SessionMessage = {
       id: crypto.randomUUID(),
       sessionId,
-      role: "system",
-      content: `There are earlier parts of the conversation. Here is a summary: \n\n${compactedSummary}`,
+      role: "assistant",
+      content: summaryContent,
       contentParams: null,
       messageParams: null,
       compacted: false,
-      visible: false,
+      visible: true,
       createTime: now,
       updateTime: now,
       meta: {
@@ -1671,6 +1690,15 @@ ${skillMd}
       model: this.getResolvedSettings().model,
       webSearchEnabled: true,
     };
+  }
+
+  /**
+   * Get the current system prompt text for pinned constraint extraction.
+   * Used by compactSession to preserve critical instructions across folds.
+   * Ported from MiMo-Reasonix cache-first pattern.
+   */
+  private getSystemPromptText(): string {
+    return getSystemPrompt(this.projectRoot, this.getPromptToolOptions());
   }
 
   interruptActiveSession(): void {
