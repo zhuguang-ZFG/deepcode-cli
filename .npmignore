@@ -1,0 +1,21 @@
+# .npmignore - override .gitignore for npm packaging
+# Include dist/ for npm package (it's in .gitignore but needed for installation)
+
+# Exclude source and dev files
+src/
+__tests__/
+*.ts
+*.tsx
+!dist/*.js
+
+# Exclude dev config
+.eslintrc*
+.prettierrc
+tsconfig.json
+vitest.config.ts
+.husky/
+
+# Exclude temp files
+*.log
+.DS_Store
+node_modules/
