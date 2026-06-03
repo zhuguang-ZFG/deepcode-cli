@@ -11,9 +11,9 @@ export {
   writeProjectSettings,
   writeModelConfigSelection,
   resolveCurrentSettings,
-  buildPromptDraftFromSessionMessage,
-  buildStatusLine,
-} from "./App";
+} from "./settings-io";
+export { buildPromptDraftFromSessionMessage } from "./hooks/useViewActions";
+export { buildStatusLine } from "./session-status";
 export { createOpenAIClient } from "../common/openai-client";
 export { default as AppContainer } from "./AppContainer";
 export { AskUserQuestionPrompt } from "./AskUserQuestionPrompt";

@@ -1,29 +1,19 @@
-import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Box, Static, Text, useApp, useStdout, useWindowSize } from "ink";
 import chalk from "chalk";
-import * as fs from "fs";
-import * as os from "os";
-import * as path from "path";
-import { createOpenAIClient } from "../common/openai-client";
+import type { SessionManager } from "../session";
 import {
   type LlmStreamProgress,
   type MessageMeta,
   type ModelUsage,
   type SessionEntry,
-  SessionManager,
   type SessionMessage,
   type SessionStatus,
   type SkillInfo,
   type UndoTarget,
   type UserPromptContent,
 } from "../session";
-import {
-  applyModelConfigSelection,
-  type DeepcodingSettings,
-  type ModelConfigSelection,
-  type ResolvedDeepcodingSettings,
-  resolveSettingsSources,
-} from "../settings";
+import { type ModelConfigSelection, type ResolvedDeepcodingSettings } from "../settings";
 import { PromptInput, type PromptDraft, type PromptSubmission } from "./PromptInput";
 import { MessageView, RawModeExitPrompt } from "./components";
 import { SessionList } from "./SessionList";
@@ -41,13 +31,15 @@ import {
   findPendingAskUserQuestion,
   formatAskUserQuestionAnswers,
 } from "./askUserQuestion";
-import { buildExitSummaryText } from "./exitSummary";
 import { RawMode, useRawModeContext } from "./contexts";
 import { renderMessageToStdout } from "./components/MessageView/utils";
-import { executeLiMaCommand } from "../lima/command-runner";
+import { createOpenAIClient } from "../common/openai-client";
 
-const DEFAULT_MODEL = "deepseek-v4-pro";
-const DEFAULT_BASE_URL = "https://api.deepseek.com";
+import { resolveCurrentSettings } from "./settings-io";
+import { useSessionManager } from "./hooks/useSessionManager";
+import { usePromptHandler, buildSyntheticUserMessage } from "./hooks/usePromptHandler";
+import { useViewActions } from "./hooks/useViewActions";
+import { useModelConfig } from "./hooks/useModelConfig";
 
 type View = "chat" | "session-list" | "undo" | "mcp-status";
 
@@ -94,96 +86,110 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
   rawModeRef.current = mode;
   messagesRef.current = messages;
 
-  const sessionManager = useMemo(() => {
-    return new SessionManager({
-      projectRoot,
-      createOpenAIClient: () => createOpenAIClient(projectRoot),
-      getResolvedSettings: () => resolveCurrentSettings(projectRoot),
-      renderMarkdown: (text) => text,
-      onAssistantMessage: (message: SessionMessage) => {
-        setMessages((prev) => [...prev, message]);
-        if (rawModeRef.current === RawMode.Raw) {
-          process.stdout.write("\n");
-          process.stdout.write(renderMessageToStdout(message, rawModeRef.current) + "\n\n");
-        }
-      },
-      onSessionEntryUpdated: (entry) => {
-        setActiveEntry(entry);
-        setStatusLine(buildStatusLine(entry));
-        setRunningProcesses(entry.processes);
-        setActiveStatus(entry.status);
-      },
-      onLlmStreamProgress: (progress) => {
-        if (progress.phase === "end") {
-          setStreamProgress(null);
-          return;
-        }
-        setStreamProgress(progress);
-      },
-      onMcpStatusChanged: () => {
-        // 当 MCP 状态变更时，如果当前正在查看 MCP 状态页面，则更新显示
-        setMcpStatuses(sessionManager.getMcpStatus());
-      },
-      onProcessStdout: (pid, chunk) => {
-        const buf = processStdoutRef.current;
-        const current = buf.get(pid) ?? "";
-        // Cap at 1 MB per process to avoid unbounded memory growth
-        // on noisy or long-running commands like `yes` or verbose builds.
-        const MAX_STDOUT_BUFFER = 1_000_000;
-        if (current.length >= MAX_STDOUT_BUFFER) {
-          return;
-        }
-        const text = typeof chunk === "string" ? chunk : String(chunk);
-        const available = MAX_STDOUT_BUFFER - current.length;
-        buf.set(pid, current + text.slice(0, available));
-      },
-    });
-  }, [projectRoot]);
+  // --- Hooks ---
+  const sessionManager = useSessionManager(projectRoot, {
+    rawModeRef,
+    setMessages,
+    setActiveEntry,
+    setStatusLine,
+    setRunningProcesses,
+    setActiveStatus,
+    setStreamProgress,
+    setMcpStatuses,
+    processStdoutRef,
+  });
 
-  useEffect(() => {
-    if (!busy) {
-      return;
-    }
-    const id = setInterval(() => setNowTick((tick) => tick + 1), 500);
-    return () => clearInterval(id);
-  }, [busy]);
-
-  function loadVisibleMessages(manager: SessionManager, sessionId: string): SessionMessage[] {
-    return manager.listSessionMessages(sessionId).filter((m) => m.visible);
-  }
-
-  const refreshSessionsList = useCallback((): void => {
-    setSessions(sessionManager.listSessions());
-  }, [sessionManager]);
-
-  const refreshSkills = useCallback(
-    async (sessionId?: string): Promise<void> => {
+  const { handleSubmit, handleInterrupt } = usePromptHandler({
+    projectRoot,
+    onRestart,
+    sessionManager,
+    rawModeRef,
+    writeRef,
+    limaCommandAbortRef,
+    refreshSkills: async (sessionId?: string) => {
       try {
         const list = await sessionManager.listSkills(sessionId ?? sessionManager.getActiveSessionId() ?? undefined);
         setSkills(list);
       } catch {
-        // ignore
+        /* ignore */
       }
     },
-    [sessionManager]
+    refreshSessionsList: () => setSessions(sessionManager.listSessions()),
+    setMessages,
+    setBusy,
+    setErrorLine,
+    setStreamProgress,
+    setRunningProcesses,
+    setActiveEntry,
+    setActiveStatus,
+    setIsExiting,
+    setShowWelcome,
+    setWelcomeNonce,
+    setDismissedQuestionIds,
+    setView,
+    setUndoTargets,
+    setMcpStatuses,
+    setStatusLine,
+    setShowProcessStdout,
+    processStdoutRef,
+  });
+
+  const loadVisibleMessages = useCallback(
+    (manager: SessionManager, sessionId: string): SessionMessage[] =>
+      manager.listSessionMessages(sessionId).filter((m) => m.visible),
+    []
   );
 
-  useEffect(() => {
-    refreshSessionsList();
-    void refreshSkills();
-  }, [refreshSessionsList, refreshSkills]);
+  const { handleSelectSession, handleUndoRestore, handleRawModeChange } = useViewActions({
+    sessionManager,
+    rawModeRef,
+    setMode,
+    refreshSkills: async (sessionId?: string) => {
+      try {
+        const list = await sessionManager.listSkills(sessionId ?? sessionManager.getActiveSessionId() ?? undefined);
+        setSkills(list);
+      } catch {
+        /* ignore */
+      }
+    },
+    refreshSessionsList: () => setSessions(sessionManager.listSessions()),
+    loadVisibleMessages,
+    setMessages,
+    setShowWelcome,
+    setWelcomeNonce,
+    setView,
+    setErrorLine,
+    setStatusLine,
+    setActiveEntry,
+    setRunningProcesses,
+    setActiveStatus,
+    setPromptDraft,
+  });
 
-  // Eagerly create the OpenAI client on mount so the TCP+TLS connection
-  // warmup (fire-and-forget inside createOpenAIClient) starts before the
-  // user sends their first prompt.
+  const { handleModelConfigChange } = useModelConfig(projectRoot, sessionManager, setMessages, setResolvedSettings);
+
+  // --- Effects ---
+  useEffect(() => {
+    if (!busy) return;
+    const id = setInterval(() => setNowTick((tick) => tick + 1), 500);
+    return () => clearInterval(id);
+  }, [busy]);
+
+  useEffect(() => {
+    setSessions(sessionManager.listSessions());
+    void (async () => {
+      try {
+        const list = await sessionManager.listSkills(sessionManager.getActiveSessionId() ?? undefined);
+        setSkills(list);
+      } catch {
+        /* ignore */
+      }
+    })();
+  }, [sessionManager]);
+
   useEffect(() => {
     createOpenAIClient(projectRoot);
   }, [projectRoot]);
-
-  useLayoutEffect(() => {
-    const settings = resolveCurrentSettings(projectRoot);
-    void sessionManager.initMcpServers(settings.mcpServers);
-  }, [projectRoot, sessionManager]);
 
   useEffect(() => {
     return () => {
@@ -191,365 +197,25 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
     };
   }, [sessionManager]);
 
-  writeRef.current = write;
-  const handlePrompt = useCallback(
-    async (submission: PromptSubmission) => {
-      if (submission.command === "exit") {
-        setIsExiting(true);
-        setTimeout(() => {
-          const activeSessionId = sessionManager.getActiveSessionId();
-          const session = activeSessionId ? sessionManager.getSession(activeSessionId) : null;
-          const summary = buildExitSummaryText({ session });
-          process.stdout.write("\n");
-          process.stdout.write(chalk.rgb(34, 154, 195)("> /exit "));
-          process.stdout.write("\n\n");
-          process.stdout.write(summary);
-          process.stdout.write("\n\n");
-          sessionManager.dispose();
-          exit();
-        }, 0);
-        return;
-      }
-      if (submission.command === "new") {
-        if (onRestart) {
-          onRestart();
-        } else {
-          writeRef.current("\u001B[2J\u001B[3J\u001B[H");
-          sessionManager.setActiveSessionId(null);
-          setMessages([]);
-          setStatusLine("");
-          setErrorLine(null);
-          setActiveEntry(null);
-          setRunningProcesses(null);
-          setActiveStatus(null);
-          setDismissedQuestionIds(new Set());
-          setShowWelcome(true);
-          setWelcomeNonce((n) => n + 1);
-          await refreshSkills();
-          refreshSessionsList();
-        }
-        return;
-      }
-      if (submission.command === "resume") {
-        setShowWelcome(false);
-        refreshSessionsList();
-        setView("session-list");
-        return;
-      }
-      if (submission.command === "continue" && isCurrentSessionEmpty(sessionManager)) {
-        setShowWelcome(false);
-        refreshSessionsList();
-        setView("session-list");
-        return;
-      }
-      if (submission.command === "undo") {
-        const activeSessionId = sessionManager.getActiveSessionId();
-        if (!activeSessionId) {
-          setErrorLine("No active session to undo.");
-          return;
-        }
-        setShowWelcome(false);
-        setUndoTargets(sessionManager.listUndoTargets(activeSessionId));
-        setView("undo");
-        return;
-      }
-      if (submission.command === "mcp") {
-        setShowWelcome(false);
-        setMcpStatuses(sessionManager.getMcpStatus());
-        setView("mcp-status");
-        return;
-      }
-      if (submission.command === "lima") {
-        setShowWelcome(false);
-        setBusy(true);
-        setErrorLine(null);
-        setMessages((prev) => [...prev, buildSyntheticUserMessage(submission.text, 0)]);
-        const abortController = new AbortController();
-        limaCommandAbortRef.current = abortController;
-        try {
-          const result = await executeLiMaCommand(submission.text, { projectRoot, signal: abortController.signal });
-          setMessages((prev) => [...prev, buildSyntheticAssistantMessage(result.message)]);
-          if (!result.ok) {
-            setErrorLine(result.message);
-          }
-        } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
-          setErrorLine(message);
-          setMessages((prev) => [...prev, buildSyntheticAssistantMessage(message)]);
-        } finally {
-          setBusy(false);
-          setStreamProgress(null);
-          setRunningProcesses(null);
-          setActiveEntry(null);
-          limaCommandAbortRef.current = null;
-        }
-        return;
-      }
-
-      const prompt: UserPromptContent = {
-        text: submission.text,
-        imageUrls: submission.imageUrls,
-        skills:
-          submission.selectedSkills && submission.selectedSkills.length > 0 ? submission.selectedSkills : undefined,
-      };
-
-      const trimmedText = (submission.text ?? "").trim();
-      const selectedSkillNames = submission.selectedSkills?.map((skill) => skill.name).filter(Boolean) ?? [];
-      const userDisplayContent =
-        trimmedText ||
-        (selectedSkillNames.length > 0 ? `Use skills: ${selectedSkillNames.join(", ")}` : "") ||
-        (submission.imageUrls.length > 0 ? "[Image]" : "");
-
-      if (userDisplayContent && submission.command !== "continue") {
-        setMessages((prev) => [...prev, buildSyntheticUserMessage(userDisplayContent, submission.imageUrls.length)]);
-      }
-
-      setBusy(true);
-      setErrorLine(null);
-      setRunningProcesses(null);
-      setShowProcessStdout(false);
-      processStdoutRef.current.clear();
-      try {
-        await sessionManager.handleUserPrompt(prompt);
-        await refreshSkills();
-        refreshSessionsList();
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        setErrorLine(message);
-      } finally {
-        setBusy(false);
-        setStreamProgress(null);
-        setRunningProcesses(null);
-      }
-    },
-    [exit, onRestart, projectRoot, sessionManager, refreshSkills, refreshSessionsList]
-  );
-
-  const handleInterrupt = useCallback(() => {
-    if (limaCommandAbortRef.current) {
-      limaCommandAbortRef.current.abort();
-      return;
-    }
-    sessionManager.interruptActiveSession();
-  }, [sessionManager]);
-
-  const handleToggleProcessStdout = useCallback(() => {
-    setShowProcessStdout(true);
-  }, []);
-
-  const handleDismissProcessStdout = useCallback(() => {
-    setShowProcessStdout(false);
-  }, []);
-
-  const handleAdjustBashTimeout = useCallback(
-    (deltaMs: number) => sessionManager.adjustActiveBashTimeout(deltaMs),
-    [sessionManager]
-  );
-
-  const handleModelConfigChange = useCallback(
-    (selection: ModelConfigSelection): string => {
-      const current = resolveCurrentSettings(projectRoot);
-      const { changed } = writeModelConfigSelection(selection, current, projectRoot);
-      const next = resolveCurrentSettings(projectRoot);
-      setResolvedSettings(next);
-
-      if (!changed) {
-        return "模型设置未变化";
-      }
-
-      const activeSessionId = sessionManager.getActiveSessionId();
-      const meta: MessageMeta = {
-        isModelChange: true,
-      };
-      const content = `/model\n└ 已切换模型到 ${selection.model} (${formatThinkingMode(selection)})`;
-
-      if (activeSessionId) {
-        sessionManager.addSessionSystemMessage(activeSessionId, content, true, meta);
-      } else {
-        const now = new Date().toISOString();
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: crypto.randomUUID(),
-            sessionId: "local",
-            role: "system" as const,
-            content,
-            contentParams: null,
-            messageParams: null,
-            compacted: false,
-            visible: true,
-            createTime: now,
-            updateTime: now,
-            meta,
-          },
-        ]);
-      }
-
-      return `模型设置已更新：${formatModelConfig(current)} → ${formatModelConfig(next)}`;
-    },
-    [projectRoot, sessionManager]
-  );
-
-  const handleSubmit = useCallback(
-    (submission: PromptSubmission) => {
-      void handlePrompt(submission);
-    },
-    [handlePrompt]
-  );
-
-  const reloadActiveSessionView = useCallback(
-    (sessionId: string): void => {
-      process.stdout.write("\u001B[2J\u001B[3J\u001B[H");
-      setMessages([]);
-      setShowWelcome(false);
-      setWelcomeNonce((n) => n + 1);
-      setTimeout(() => {
-        setMessages(loadVisibleMessages(sessionManager, sessionId));
-        setShowWelcome(true);
-      }, 0);
-    },
-    [sessionManager]
-  );
-
   useEffect(() => {
-    if (initialPromptSubmittedRef.current || !initialPrompt || !initialPrompt.trim()) {
-      return;
-    }
-
+    if (initialPromptSubmittedRef.current || !initialPrompt || !initialPrompt.trim()) return;
     initialPromptSubmittedRef.current = true;
-    handleSubmit({
-      text: initialPrompt,
-      imageUrls: [],
-      selectedSkills: undefined,
-    });
+    handleSubmit({ text: initialPrompt, imageUrls: [], selectedSkills: undefined });
   }, [handleSubmit, initialPrompt]);
 
-  const handleSelectSession = useCallback(
-    async (sessionId: string) => {
-      const currentSessionId = sessionManager.getActiveSessionId();
-      if (currentSessionId !== sessionId) {
-        process.stdout.write("\u001B[2J\u001B[3J\u001B[H");
-      }
-      sessionManager.setActiveSessionId(sessionId);
-      // Clear first so <Static> resets its index to 0.
-      setMessages([]);
-      setShowWelcome(false);
-      setWelcomeNonce((n) => n + 1);
-      setView("chat");
-      // Load messages after the reset so all static items are rendered.
-      setTimeout(() => {
-        setMessages(loadVisibleMessages(sessionManager, sessionId));
-        setShowWelcome(true);
-      }, 0);
-      const session = sessionManager.getSession(sessionId);
-      setStatusLine(session ? buildStatusLine(session) : "");
-      setActiveEntry(session ?? null);
-      setRunningProcesses(session?.processes ?? null);
-      setActiveStatus(session?.status ?? null);
-      await refreshSkills(sessionId);
-    },
-    [sessionManager, refreshSkills]
-  );
+  writeRef.current = write;
 
-  const handleUndoRestore = useCallback(
-    async (target: UndoTarget, restoreMode: UndoRestoreMode): Promise<void> => {
-      const sessionId = sessionManager.getActiveSessionId();
-      if (!sessionId) {
-        setErrorLine("No active session to undo.");
-        setView("chat");
-        setShowWelcome(true);
-        return;
-      }
-
-      const errors: string[] = [];
-      if (restoreMode === "code-and-conversation") {
-        try {
-          sessionManager.restoreSessionCode(sessionId, target.message.id);
-        } catch (error) {
-          errors.push(`代码恢复失败: ${error instanceof Error ? error.message : String(error)}`);
-        }
-      }
-
-      let conversationRestored = false;
-      try {
-        sessionManager.restoreSessionConversation(sessionId, target.message.id);
-        conversationRestored = true;
-      } catch (error) {
-        errors.push(`会话恢复失败: ${error instanceof Error ? error.message : String(error)}`);
-      }
-
-      refreshSessionsList();
-      await refreshSkills(sessionId);
-      setView("chat");
-      setErrorLine(errors.length > 0 ? errors.join(" ") : null);
-      if (conversationRestored) {
-        setPromptDraft(buildPromptDraftFromSessionMessage(target.message, Date.now()));
-      }
-      reloadActiveSessionView(sessionId);
-    },
-    [reloadActiveSessionView, refreshSessionsList, refreshSkills, sessionManager]
-  );
-
-  const handleRawModeChange = useCallback(
-    (nextMode: string) => {
-      const activeSessionId = sessionManager.getActiveSessionId();
-      setMode(nextMode as RawMode);
-      // Reset chat view state synchronously so the transition frame does not
-      // re-render a stale welcome screen before handleSelectSession runs.
-      setShowWelcome(false);
-      setMessages([]);
-      // Clear screen to remove stale formatted text.
-      process.stdout.write("\u001B[2J\u001B[3J\u001B[H");
-
-      setTimeout(() => {
-        if (nextMode === RawMode.Raw) {
-          // Write all messages directly to stdout for raw scrollback mode.
-          const allMessages = activeSessionId ? loadVisibleMessages(sessionManager, activeSessionId) : [];
-          for (const msg of allMessages) {
-            process.stdout.write("\n");
-            process.stdout.write(renderMessageToStdout(msg, nextMode) + "\n\n");
-          }
-          if (allMessages.length > 0) {
-            process.stdout.write("\n\n");
-            process.stdout.write(chalk.dim("按 ESC 退出原始模式"));
-          } else {
-            process.stdout.write("\n");
-            process.stdout.write(chalk.dim("(当前会话还没有消息。发送一条消息后会显示在这里。)"));
-            process.stdout.write("\n\n");
-            process.stdout.write(chalk.dim("按 ESC 退出原始模式"));
-          }
-        } else if (activeSessionId) {
-          // Switch to chat view to render messages.
-          handleSelectSession(activeSessionId);
-        } else {
-          // No active session: just show the welcome screen once.
-          setWelcomeNonce((n) => n + 1);
-          setShowWelcome(true);
-        }
-      }, 200);
-    },
-    [handleSelectSession, sessionManager, setMode]
-  );
-
+  // --- Resize handling ---
   useEffect(() => {
-    if (!stdout?.isTTY) {
-      return;
-    }
-    if (columns <= 0) {
-      return;
-    }
+    if (!stdout?.isTTY || columns <= 0) return;
     if (lastRenderedColumnsRef.current === null) {
       lastRenderedColumnsRef.current = columns;
       return;
     }
-    if (lastRenderedColumnsRef.current === columns) {
-      return;
-    }
+    if (lastRenderedColumnsRef.current === columns) return;
     lastRenderedColumnsRef.current = columns;
 
     if (mode === RawMode.Raw) {
-      // In raw mode, re-render all messages directly to stdout at the new width.
-      // Use process.stdout.write instead of writeRef to avoid Ink interference.
       process.stdout.write("\u001B[2J\u001B[3J\u001B[H");
       const activeSessionId = sessionManager.getActiveSessionId();
       const allMessages = activeSessionId ? loadVisibleMessages(sessionManager, activeSessionId) : [];
@@ -569,13 +235,10 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
       return;
     }
 
-    // Force full redraw on terminal resize to avoid stale wrapped rows.
     writeRef.current("\u001B[2J\u001B[H");
-
     setMessages([]);
     setShowWelcome(false);
     setWelcomeNonce((n) => n + 1);
-
     const activeSessionId = sessionManager.getActiveSessionId();
     const nextMessages =
       activeSessionId && !busy ? loadVisibleMessages(sessionManager, activeSessionId) : messagesRef.current;
@@ -585,23 +248,46 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
     }, 0);
   }, [busy, mode, sessionManager, columns, stdout]);
 
-  const screenWidth = useMemo(() => columns ?? stdout?.columns ?? 80, [columns, stdout]);
-  const screenHeight = useMemo(() => rows ?? stdout?.rows ?? 24, [rows, stdout]);
-  const promptHistory = useMemo(() => {
-    return messages
-      .filter((message) => message.role === "user" && typeof message.content === "string")
-      .map((message) => (message.content ?? "").trim())
-      .filter((content) => content.length > 0);
-  }, [messages]);
-  const expandedThinkingId = findExpandedThinkingId(messages);
+  // --- Callbacks ---
+  const handleToggleProcessStdout = useCallback(() => setShowProcessStdout(true), []);
+  const handleDismissProcessStdout = useCallback(() => setShowProcessStdout(false), []);
+  const handleAdjustBashTimeout = useCallback(
+    (deltaMs: number) => sessionManager.adjustActiveBashTimeout(deltaMs),
+    [sessionManager]
+  );
+
+  const handleQuestionAnswers = useCallback(
+    (answers: AskUserQuestionAnswers) => {
+      handleSubmit({ text: formatAskUserQuestionAnswers(answers), imageUrls: [] });
+    },
+    [handleSubmit]
+  );
+
   const pendingQuestion = useMemo(() => findPendingAskUserQuestion(messages, activeStatus), [activeStatus, messages]);
   const shouldShowQuestionPrompt = Boolean(pendingQuestion && !dismissedQuestionIds.has(pendingQuestion.messageId));
+
+  const handleQuestionCancel = useCallback(() => {
+    if (!pendingQuestion) return;
+    setDismissedQuestionIds((prev) => new Set(prev).add(pendingQuestion.messageId));
+  }, [pendingQuestion]);
+
+  // --- Computed values ---
+  const screenWidth = useMemo(() => columns ?? stdout?.columns ?? 80, [columns, stdout]);
+  const screenHeight = useMemo(() => rows ?? stdout?.rows ?? 24, [rows, stdout]);
+  const promptHistory = useMemo(
+    () =>
+      messages
+        .filter((message) => message.role === "user" && typeof message.content === "string")
+        .map((message) => (message.content ?? "").trim())
+        .filter((content) => content.length > 0),
+    [messages]
+  );
+  const expandedThinkingId = findExpandedThinkingId(messages);
   const loadingText = useMemo(
     () => (busy ? buildLoadingText({ progress: streamProgress, processes: runningProcesses, now: Date.now() }) : null),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- nowTick forces periodic recalculation for spinner animation
     [busy, streamProgress, runningProcesses, nowTick]
   );
-  const runtimeStatusNow = Date.now();
   const runtimeStatus = useMemo(
     () =>
       buildRuntimeStatusViewModel({
@@ -615,7 +301,7 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
           reasoningEffort: resolvedSettings.reasoningEffort,
         },
         errorLine,
-        now: runtimeStatusNow,
+        now: Date.now(),
         busy,
         width: screenWidth,
       }),
@@ -627,7 +313,6 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
       resolvedSettings.model,
       resolvedSettings.reasoningEffort,
       resolvedSettings.thinkingEnabled,
-      runtimeStatusNow,
       runningProcesses,
       screenWidth,
       streamProgress,
@@ -654,32 +339,12 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
     [welcomeNonce]
   );
   const staticItems = useMemo(() => {
-    if (mode === RawMode.Raw) {
-      return [];
-    }
-    if (showWelcome && view === "chat") {
-      return [welcomeItem, ...messages];
-    }
+    if (mode === RawMode.Raw) return [];
+    if (showWelcome && view === "chat") return [welcomeItem, ...messages];
     return messages;
   }, [mode, showWelcome, view, messages, welcomeItem]);
 
-  const handleQuestionAnswers = useCallback(
-    (answers: AskUserQuestionAnswers) => {
-      void handlePrompt({
-        text: formatAskUserQuestionAnswers(answers),
-        imageUrls: [],
-      });
-    },
-    [handlePrompt]
-  );
-
-  const handleQuestionCancel = useCallback(() => {
-    if (!pendingQuestion) {
-      return;
-    }
-    setDismissedQuestionIds((prev) => new Set(prev).add(pendingQuestion.messageId));
-  }, [pendingQuestion]);
-
+  // --- Render ---
   if (mode === RawMode.Raw) {
     return <RawModeExitPrompt onExit={(prev) => handleRawModeChange(prev)} />;
   }
@@ -794,268 +459,24 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
   );
 }
 
+// --- Helpers (kept local for App.tsx rendering) ---
+
 function isCollapsedThinking(message: SessionMessage, expandedId: string | null): boolean {
-  if (message.role !== "assistant") {
-    return false;
-  }
-  if (!message.meta?.asThinking) {
-    return false;
-  }
+  if (message.role !== "assistant") return false;
+  if (!message.meta?.asThinking) return false;
   return message.id !== expandedId;
 }
 
-function buildSyntheticUserMessage(content: string, imageCount: number): SessionMessage {
-  const now = new Date().toISOString();
-  return {
-    id: `local-${Math.random().toString(36).slice(2)}`,
-    sessionId: "local",
-    role: "user",
-    content,
-    contentParams:
-      imageCount > 0
-        ? Array.from({ length: imageCount }, () => ({
-            type: "image_url",
-            image_url: { url: "" },
-          }))
-        : null,
-    messageParams: null,
-    compacted: false,
-    visible: true,
-    createTime: now,
-    updateTime: now,
-  };
-}
-
-function buildSyntheticAssistantMessage(content: string): SessionMessage {
-  const now = new Date().toISOString();
-  return {
-    id: `local-${Math.random().toString(36).slice(2)}`,
-    sessionId: "local",
-    role: "assistant",
-    content,
-    contentParams: null,
-    messageParams: null,
-    compacted: false,
-    visible: true,
-    createTime: now,
-    updateTime: now,
-  };
-}
-
-export function buildPromptDraftFromSessionMessage(message: SessionMessage, nonce: number): PromptDraft {
-  return {
-    nonce,
-    text: typeof message.content === "string" ? message.content : "",
-    imageUrls: extractImageUrlsFromContentParams(message.contentParams),
-  };
-}
-
-function extractImageUrlsFromContentParams(contentParams: unknown): string[] {
-  const params = Array.isArray(contentParams) ? contentParams : contentParams ? [contentParams] : [];
-  const imageUrls: string[] = [];
-  for (const param of params) {
-    if (!param || typeof param !== "object") {
-      continue;
-    }
-    const record = param as { type?: unknown; image_url?: { url?: unknown } };
-    const url = record.image_url?.url;
-    if (record.type === "image_url" && typeof url === "string" && url) {
-      imageUrls.push(url);
-    }
-  }
-  return imageUrls;
-}
-
-function isCurrentSessionEmpty(sessionManager: SessionManager): boolean {
-  const activeSessionId = sessionManager.getActiveSessionId();
-  return !activeSessionId || !sessionManager.getSession(activeSessionId);
-}
-
-export function buildStatusLine(entry: SessionEntry): string {
-  const parts: string[] = [`状态: ${entry.status}`];
-  if (typeof entry.activeTokens === "number" && entry.activeTokens > 0) {
-    parts.push(`本轮: ${entry.activeTokens.toLocaleString("en-US")}`);
-  }
-  const totals = sumStatusUsage(entry.usagePerModel);
-  if (totals.promptTokens > 0) {
-    parts.push(`输入: ${totals.promptTokens.toLocaleString("en-US")}`);
-  }
-  if (totals.completionTokens > 0) {
-    parts.push(`输出: ${totals.completionTokens.toLocaleString("en-US")}`);
-  }
-  if (totals.cachedTokens > 0) {
-    parts.push(`缓存: ${totals.cachedTokens.toLocaleString("en-US")}${formatCacheHitRate(totals)}`);
-  }
-  if (totals.totalReqs > 0) {
-    parts.push(`请求: ${totals.totalReqs.toLocaleString("en-US")}`);
-  }
-  if (entry.failReason) {
-    parts.push(`失败: ${entry.failReason}`);
-  }
-  return parts.join(" · ");
-}
-
-function sumStatusUsage(usagePerModel: Record<string, ModelUsage> | null): {
-  promptTokens: number;
-  completionTokens: number;
-  cachedTokens: number;
-  cacheMissTokens: number;
-  totalReqs: number;
-} {
-  const totals = {
-    promptTokens: 0,
-    completionTokens: 0,
-    cachedTokens: 0,
-    cacheMissTokens: 0,
-    totalReqs: 0,
-  };
-  if (!usagePerModel) {
-    return totals;
-  }
-  for (const usage of Object.values(usagePerModel)) {
-    totals.promptTokens += numberField(usage.prompt_tokens);
-    totals.completionTokens += numberField(usage.completion_tokens);
-    totals.cachedTokens += extractCachedTokens(usage);
-    totals.cacheMissTokens += numberField(usage.prompt_cache_miss_tokens);
-    totals.totalReqs += numberField(usage.total_reqs);
-  }
-  return totals;
-}
-
-function formatCacheHitRate(totals: { promptTokens: number; cachedTokens: number; cacheMissTokens: number }): string {
-  const denominator = totals.cacheMissTokens > 0 ? totals.cachedTokens + totals.cacheMissTokens : totals.promptTokens;
-  if (denominator <= 0) {
-    return "";
-  }
-  const hitRate = (totals.cachedTokens / denominator) * 100;
-  if (!Number.isFinite(hitRate) || hitRate <= 0) {
-    return "";
-  }
-  return ` (${hitRate.toFixed(1)}%)`;
-}
-
-function extractCachedTokens(usage: ModelUsage): number {
-  const promptDetails = usage.prompt_tokens_details;
-  const cachedFromDetails =
-    promptDetails && typeof promptDetails.cached_tokens === "number" ? promptDetails.cached_tokens : 0;
-  return cachedFromDetails || numberField(usage.prompt_cache_hit_tokens);
-}
-
-function numberField(value: unknown): number {
-  return typeof value === "number" && Number.isFinite(value) ? value : 0;
-}
-
-export function readSettings(): DeepcodingSettings | null {
-  return readFirstSettingsFile(getUserSettingsPath(), getLegacyUserSettingsPath());
-}
-
-export function readProjectSettings(projectRoot: string = process.cwd()): DeepcodingSettings | null {
-  return readFirstSettingsFile(getProjectSettingsPath(projectRoot), getLegacyProjectSettingsPath(projectRoot));
-}
-
-function readFirstSettingsFile(...settingsPaths: string[]): DeepcodingSettings | null {
-  for (const settingsPath of settingsPaths) {
-    const settings = readSettingsFile(settingsPath);
-    if (settings) {
-      return settings;
-    }
-  }
-  return null;
-}
-
-function readSettingsFile(settingsPath: string): DeepcodingSettings | null {
-  try {
-    if (!fs.existsSync(settingsPath)) {
-      return null;
-    }
-    const raw = fs.readFileSync(settingsPath, "utf8");
-    return JSON.parse(raw) as DeepcodingSettings;
-  } catch {
-    return null;
-  }
-}
-
-export function writeSettings(settings: DeepcodingSettings): void {
-  const settingsPath = getUserSettingsPath();
-  writeSettingsFile(settingsPath, settings);
-}
-
-export function writeProjectSettings(settings: DeepcodingSettings, projectRoot: string = process.cwd()): void {
-  const settingsPath = getProjectSettingsPath(projectRoot);
-  writeSettingsFile(settingsPath, settings);
-}
-
-function writeSettingsFile(settingsPath: string, settings: DeepcodingSettings): void {
-  fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
-  fs.writeFileSync(settingsPath, `${JSON.stringify(settings, null, 2)}\n`, "utf8");
-}
-
-export function writeModelConfigSelection(
-  selection: ModelConfigSelection,
-  current: ModelConfigSelection = resolveCurrentSettings(),
-  projectRoot: string = process.cwd()
-): { changed: boolean; settings: DeepcodingSettings } {
-  const existingProjectSettingsPath = getExistingProjectSettingsPath(projectRoot);
-  const shouldWriteProjectSettings = existingProjectSettingsPath !== null;
-  const rawSettings = shouldWriteProjectSettings ? readSettingsFile(existingProjectSettingsPath) : readSettings();
-  const result = applyModelConfigSelection(rawSettings, current, selection);
-  if (result.changed) {
-    if (shouldWriteProjectSettings) {
-      writeSettingsFile(existingProjectSettingsPath, result.settings);
-    } else {
-      writeSettings(result.settings);
-    }
-  }
-  return result;
-}
-
-export function resolveCurrentSettings(projectRoot: string = process.cwd()): ResolvedDeepcodingSettings {
-  return resolveSettingsSources(
-    readSettings(),
-    readProjectSettings(projectRoot),
-    {
-      model: DEFAULT_MODEL,
-      baseURL: DEFAULT_BASE_URL,
-    },
-    process.env
-  );
-}
-
+// Re-export for backward compatibility
+export { buildPromptDraftFromSessionMessage } from "./hooks/useViewActions";
+export { buildStatusLine } from "./session-status";
 export { createOpenAIClient } from "../common/openai-client";
-
-function getUserSettingsPath(): string {
-  return path.join(os.homedir(), ".lima-code", "settings.json");
-}
-
-function getLegacyUserSettingsPath(): string {
-  return path.join(os.homedir(), ".deepcode", "settings.json");
-}
-
-function getProjectSettingsPath(projectRoot: string): string {
-  return path.join(projectRoot, ".lima-code", "settings.json");
-}
-
-function getLegacyProjectSettingsPath(projectRoot: string): string {
-  return path.join(projectRoot, ".deepcode", "settings.json");
-}
-
-function getExistingProjectSettingsPath(projectRoot: string): string | null {
-  const projectSettingsPath = getProjectSettingsPath(projectRoot);
-  if (fs.existsSync(projectSettingsPath)) {
-    return projectSettingsPath;
-  }
-
-  const legacyProjectSettingsPath = getLegacyProjectSettingsPath(projectRoot);
-  return fs.existsSync(legacyProjectSettingsPath) ? legacyProjectSettingsPath : null;
-}
-
-function formatThinkingMode(settings: Pick<ModelConfigSelection, "thinkingEnabled" | "reasoningEffort">): string {
-  if (!settings.thinkingEnabled) {
-    return "关闭思考";
-  }
-  return `思考 ${settings.reasoningEffort}`;
-}
-
-function formatModelConfig(settings: ModelConfigSelection): string {
-  return `${settings.model}, ${formatThinkingMode(settings)}`;
-}
+// Re-export settings functions for backward compatibility
+export {
+  readSettings,
+  readProjectSettings,
+  writeSettings,
+  writeProjectSettings,
+  writeModelConfigSelection,
+  resolveCurrentSettings,
+} from "./settings-io";

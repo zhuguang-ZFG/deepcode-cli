@@ -7,6 +7,7 @@ import ejs from "ejs";
 import type { SessionMessage } from "./session";
 import { findGitBashPath, resolveShellPath } from "./common/shell-utils";
 import { supportsMultimodal } from "./common/model-capabilities";
+import { hasCodeGraphIndex } from "./lima/codegraph-mcp-preset";
 
 const COMPACT_PROMPT_BASE = `Your task is to create a detailed summary of the conversation so far, paying close attention to the user's explicit requests and your previous actions.
 This summary should be thorough in capturing technical details, code patterns, and architectural decisions that would be essential for continuing development work without losing context.
@@ -210,13 +211,17 @@ export function getRuntimeContext(projectRoot: string, model?: string): string {
       jq: checkToolInstalled("jq"),
     },
   };
+  const codegraphAvailable = hasCodeGraphIndex(projectRoot);
+  const codegraphNote = codegraphAvailable
+    ? "\n\n# CodeGraph 代码智能\n\n当前项目已启用 CodeGraph 代码知识图谱索引。CodeGraph MCP 工具（codegraph_search, codegraph_context, codegraph_trace, codegraph_impact 等）已注册为可用工具，可直接调用进行代码搜索、上下文理解、调用链追踪和影响分析。优先使用 CodeGraph 工具而非手动 grep 搜索。"
+    : "";
   return `${getCurrentDateAndModelPrompt(model)}
 
 # Local Workspace Environment
 
 \`\`\`json
 ${JSON.stringify(env, null, 2)}
-\`\`\``;
+\`\`\`${codegraphNote}`;
 }
 
 function checkToolInstalled(tool: string): boolean {

@@ -268,7 +268,9 @@ function buildToolDefinitions() {
  */
 async function executeTool(name: string, args: Record<string, unknown>, projectRoot: string): Promise<string> {
   const fs = await import("fs/promises");
-  const { execSync } = await import("child_process");
+  const { execFile } = await import("child_process");
+  const { promisify } = await import("util");
+  const execFileAsync = promisify(execFile);
 
   switch (name) {
     case "bash": {
@@ -276,18 +278,25 @@ async function executeTool(name: string, args: Record<string, unknown>, projectR
       const blockReason = validateCommand(command);
       if (blockReason) return blockReason;
       const timeout = Number(args.timeout || 30) * 1000;
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeout);
+
       try {
-        const output = execSync(command, {
+        // Use execFile with shell: true for async execution (non-blocking)
+        const result = await execFileAsync(command, [], {
           cwd: projectRoot,
           timeout,
-          encoding: "utf-8",
           maxBuffer: 10 * 1024 * 1024,
-          stdio: ["pipe", "pipe", "pipe"],
+          shell: true,
+          signal: controller.signal,
         });
+        const output = typeof result.stdout === "string" ? result.stdout : String(result.stdout);
         return output.slice(0, 30000) || "(no output)";
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
         return `Exit 1: ${msg.slice(0, 5000)}`;
+      } finally {
+        clearTimeout(timeoutId);
       }
     }
     case "read": {
@@ -342,7 +351,7 @@ async function callLiMaWithTools(
   projectRoot: string,
   opts: { model?: string; maxTokens?: number; sessionId?: string; telemetry: HeadlessTelemetry }
 ): Promise<LiMaCallResult> {
-  const { resolveCurrentSettings } = await import("./ui/App");
+  const { resolveCurrentSettings } = await import("./ui/settings-io");
   const settings = resolveCurrentSettings(projectRoot) as {
     env?: { BASE_URL?: string; API_KEY?: string };
     model?: string;
@@ -629,7 +638,7 @@ async function reportOutcome(
 ): Promise<HeadlessOutcomeTelemetry> {
   const startedAt = Date.now();
   try {
-    const { resolveCurrentSettings } = await import("./ui/App");
+    const { resolveCurrentSettings } = await import("./ui/settings-io");
     const settings = resolveCurrentSettings(projectRoot) as {
       env?: { BASE_URL?: string; API_KEY?: string };
     };
@@ -777,13 +786,15 @@ async function agentLoop(
         try {
           const filePath = String(tc.arguments.file_path || "");
           if (filePath) {
-            const { execSync } = await import("child_process");
-            const diff = execSync(`git diff --no-color -- "${filePath}" 2>/dev/null || true`, {
+            const { execFile } = await import("child_process");
+            const { promisify } = await import("util");
+            const execFileAsync = promisify(execFile);
+            const diffResult = await execFileAsync("git", ["diff", "--no-color", "--", filePath], {
               cwd: projectRoot,
-              encoding: "utf-8",
               timeout: 5000,
-            }).trim();
-            if (diff) {
+            });
+            const diff = typeof diffResult.stdout === "string" ? diffResult.stdout : String(diffResult.stdout);
+            if (diff.trim()) {
               process.stderr.write(`\n[diff] ${filePath}:\n${diff.slice(0, 2000)}\n`);
             }
           }

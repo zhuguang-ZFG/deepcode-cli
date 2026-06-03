@@ -2,7 +2,6 @@ import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
 import * as crypto from "crypto";
-import { fileURLToPath } from "url";
 import matter from "gray-matter";
 import ejs from "ejs";
 import type { ChatCompletionMessageParam, ChatCompletionContentPart } from "openai/resources/chat/completions";
@@ -25,274 +24,94 @@ import {
 } from "./tools/executor";
 import { McpManager } from "./mcp/mcp-manager";
 import type { McpServerConfig } from "./settings";
+import { getCodeGraphMcpServers } from "./lima/codegraph-mcp-preset";
 import { logApiError } from "./common/error-logger";
-import { logOpenAIChatCompletionDebug, normalizeDebugError } from "./common/debug-logger";
+import type { logOpenAIChatCompletionDebug } from "./common/debug-logger";
+import { normalizeDebugError } from "./common/debug-logger";
 import { killProcessTree } from "./common/process-tree";
 import { GitFileHistory } from "./common/file-history";
+import * as sessionStorage from "./session/session-storage";
+import * as llmStream from "./session/llm-stream";
+import * as messageBuilder from "./session/message-builder";
 
-const MAX_SESSION_ENTRIES = 50;
-const DEFAULT_COMPACT_PROMPT_TOKEN_THRESHOLD = 128 * 1024;
-const DEEPSEEK_V4_COMPACT_PROMPT_TOKEN_THRESHOLD = 512 * 1024;
-const DEFAULT_MAX_MODEL_ITERATIONS = 20;
-const DEFAULT_LIMA_ROUTER_REQUEST_TIMEOUT_MS = 90_000;
-const DEFAULT_LIMA_ROUTER_MAX_RETRIES = 1;
-const LIMA_ROUTER_PROJECT_INSTRUCTION_MIN_CHARS = 3000;
-const LIMA_ROUTER_SAFE_SYSTEM_PROMPT = `你是 LiMa Code，一个交互式编码 CLI。
+// Re-export types, constants, and helpers from sub-modules
+export type {
+  SessionStatus,
+  ModelUsage,
+  SessionProcessEntry,
+  BashTimeoutAdjustment,
+  SessionEntry,
+  SessionsIndex,
+  SessionMessageRole,
+  MessageMeta,
+  SessionMessage,
+  UndoTarget,
+  UserPromptContent,
+  SkillInfo,
+  LlmStreamProgress,
+} from "./session/types";
+import type {
+  ModelUsage,
+  SessionEntry,
+  SessionMessage,
+  SessionProcessEntry,
+  BashTimeoutAdjustment,
+  SessionStatus,
+  MessageMeta,
+  SkillInfo,
+  LlmStreamProgress,
+  UndoTarget,
+  UserPromptContent,
+  SessionsIndex,
+  SessionMessageRole,
+} from "./session/types";
 
-帮助用户在当前项目中完成软件工程任务。
-需要本地检查或编辑时，使用提供的工具 schema。
-回答保持简洁，并给出可验证证据。
-不要暴露隐藏推理。
-不要编造非编程 URL。
-不要泄露本地敏感配置值。`;
-const LIMA_ROUTER_SAFE_DEFAULT_SKILL_PROMPT = `默认操作规则：
-- 始终贴合用户当前请求。
-- 只有多步骤任务才需要计划。
-- 优先做聚焦的项目检查，再进行变更。
-- 只有歧义会影响实现或验证路径时，才停下来询问。`;
-const LIMA_ROUTER_PROJECT_INSTRUCTION_SUMMARY = `项目指令位于本地 AGENTS.md，已为 LiMa Router 兼容性压缩为摘要。
+export {
+  MAX_SESSION_ENTRIES,
+  DEFAULT_COMPACT_PROMPT_TOKEN_THRESHOLD,
+  DEEPSEEK_V4_COMPACT_PROMPT_TOKEN_THRESHOLD,
+  DEFAULT_MAX_MODEL_ITERATIONS,
+  DEFAULT_LIMA_ROUTER_REQUEST_TIMEOUT_MS,
+  DEFAULT_LIMA_ROUTER_MAX_RETRIES,
+  LIMA_ROUTER_PROJECT_INSTRUCTION_MIN_CHARS,
+  LIMA_ROUTER_SAFE_SYSTEM_PROMPT,
+  LIMA_ROUTER_SAFE_DEFAULT_SKILL_PROMPT,
+  LIMA_ROUTER_PROJECT_INSTRUCTION_SUMMARY,
+  EMPTY_ASSISTANT_RESPONSE_MESSAGE,
+  type ChatCompletionDebugOptions,
+} from "./session/constants";
+import {
+  MAX_SESSION_ENTRIES,
+  DEFAULT_COMPACT_PROMPT_TOKEN_THRESHOLD,
+  DEEPSEEK_V4_COMPACT_PROMPT_TOKEN_THRESHOLD,
+  DEFAULT_MAX_MODEL_ITERATIONS,
+  DEFAULT_LIMA_ROUTER_REQUEST_TIMEOUT_MS,
+  DEFAULT_LIMA_ROUTER_MAX_RETRIES,
+  LIMA_ROUTER_PROJECT_INSTRUCTION_MIN_CHARS,
+  LIMA_ROUTER_SAFE_SYSTEM_PROMPT,
+  LIMA_ROUTER_SAFE_DEFAULT_SKILL_PROMPT,
+  LIMA_ROUTER_PROJECT_INSTRUCTION_SUMMARY,
+  EMPTY_ASSISTANT_RESPONSE_MESSAGE,
+  type ChatCompletionDebugOptions,
+} from "./session/constants";
 
-遵循这些项目规则：
-- 变更范围必须贴合用户当前请求，并保留无关脏工作区内容。
-- 优先沿用项目既有模式和聚焦编辑，避免宽泛重构。
-- 声称完成前必须运行相关本地验证。
-- 不要暴露敏感配置值，也不要提交本地运行数据、缓存、生成发布产物或调试日志。
-- LiMa Code 相关工作尽量验证真实 CLI/TUI 路径，并报告明确证据。
-- 需要项目规则原文时，只读取 AGENTS.md 中相关的小段落，不要把整份文件塞进上下文。`;
-
-type ChatCompletionDebugOptions = {
-  enabled?: boolean;
-  location: string;
-  baseURL?: string;
-  params?: Record<string, unknown>;
-};
-
-export function getCompactPromptTokenThreshold(model: string): number {
-  return DEEPSEEK_V4_MODELS.has(model)
-    ? DEEPSEEK_V4_COMPACT_PROMPT_TOKEN_THRESHOLD
-    : DEFAULT_COMPACT_PROMPT_TOKEN_THRESHOLD;
-}
-
-/**
- * Extract pinned constraints from the system prompt — HIGH PRIORITY constraints,
- * User memory, and Project memory blocks. These are appended to compaction
- * summaries so critical instructions survive context folding.
- *
- * Ported from MiMo-Reasonix `ContextManager.extractPinnedConstraints()`.
- */
-export function extractPinnedConstraints(systemPrompt: string): string {
-  const pattern = /# (?:HIGH PRIORITY constraints|User memory|Project memory)[\s\S]*?(?=\n# |\n---|$)/g;
-  return Array.from(systemPrompt.matchAll(pattern), (m) => m[0]).join("\n\n");
-}
-
-/** Combine two AbortSignals — aborts when either fires. */
-function anySignal(a: AbortSignal, b: AbortSignal): AbortSignal {
-  const controller = new AbortController();
-  if (a.aborted || b.aborted) {
-    controller.abort();
-    return controller.signal;
-  }
-  const abort = () => controller.abort();
-  a.addEventListener("abort", abort, { once: true });
-  b.addEventListener("abort", abort, { once: true });
-  return controller.signal;
-}
-
-function isUsageRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
-}
-
-function summarizeCompletionOptions(options?: Record<string, unknown>): Record<string, unknown> | undefined {
-  if (!options) {
-    return undefined;
-  }
-  return {
-    ...options,
-    signal: options.signal instanceof AbortSignal ? { aborted: options.signal.aborted } : options.signal,
-  };
-}
-
-function addUsageValue(current: unknown, next: unknown): unknown {
-  if (typeof next === "number") {
-    return (typeof current === "number" ? current : 0) + next;
-  }
-
-  if (isUsageRecord(next)) {
-    const currentRecord = isUsageRecord(current) ? current : {};
-    const result: Record<string, unknown> = { ...currentRecord };
-    for (const [key, value] of Object.entries(next)) {
-      result[key] = addUsageValue(currentRecord[key], value);
-    }
-    return result;
-  }
-
-  return next;
-}
-
-function accumulateUsage(current: ModelUsage | null, next: unknown | null | undefined): ModelUsage | null {
-  if (next == null) {
-    return current ?? null;
-  }
-  return addUsageValue(current, next) as ModelUsage;
-}
-
-function usageWithRequestCount(usage: ModelUsage): ModelUsage {
-  const totalReqs = typeof usage.total_reqs === "number" ? usage.total_reqs + 1 : 1;
-  return {
-    ...usage,
-    total_reqs: totalReqs,
-  };
-}
-
-function accumulateUsagePerModel(
-  current: Record<string, ModelUsage> | null | undefined,
-  model: string,
-  next: ModelUsage | null | undefined
-): Record<string, ModelUsage> | null {
-  if (next == null) {
-    return current ?? null;
-  }
-
-  const usagePerModel = { ...(current ?? {}) };
-  const modelName = model.trim() || "unknown";
-  usagePerModel[modelName] = accumulateUsage(usagePerModel[modelName] ?? null, usageWithRequestCount(next))!;
-  return usagePerModel;
-}
-
-function getExtensionRoot(): string {
-  if (typeof __dirname !== "undefined") {
-    return path.resolve(__dirname, "..");
-  }
-
-  const currentFilePath = fileURLToPath(import.meta.url);
-  return path.resolve(path.dirname(currentFilePath), "..");
-}
-
-function getTotalTokens(usage: ModelUsage | null | undefined): number {
-  if (!isUsageRecord(usage)) {
-    return 0;
-  }
-  const totalTokens = usage.total_tokens;
-  return typeof totalTokens === "number" ? totalTokens : 0;
-}
-
-function readPositiveIntegerEnv(name: string, defaultValue: number): number {
-  const raw = process.env[name];
-  if (!raw) {
-    return defaultValue;
-  }
-  const parsed = Number.parseInt(raw, 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : defaultValue;
-}
-
-function getLiMaRouterRequestTimeoutMs(): number {
-  return readPositiveIntegerEnv("LIMA_CODE_TUI_TIMEOUT_MS", DEFAULT_LIMA_ROUTER_REQUEST_TIMEOUT_MS);
-}
-
-function getLiMaRouterMaxRetries(): number {
-  return Math.min(5, readPositiveIntegerEnv("LIMA_CODE_TUI_MAX_RETRIES", DEFAULT_LIMA_ROUTER_MAX_RETRIES));
-}
-
-export type SessionStatus = "failed" | "pending" | "processing" | "waiting_for_user" | "completed" | "interrupted";
-
-const EMPTY_ASSISTANT_RESPONSE_MESSAGE =
-  "LiMa Server 返回空响应。请重试或运行 /lima doctor；这通常表示所选后端超时或没有产出内容。";
-
-export type ModelUsage = {
-  prompt_tokens: number;
-  completion_tokens: number;
-  total_tokens: number;
-  completion_tokens_details?: Record<string, unknown>;
-  prompt_tokens_details?: Record<string, unknown>;
-  prompt_cache_hit_tokens?: number;
-  prompt_cache_miss_tokens?: number;
-  total_reqs?: number;
-};
-
-export type SessionProcessEntry = {
-  startTime: string;
-  command: string;
-  timeoutMs?: number;
-  deadlineAt?: string;
-  timedOut?: boolean;
-};
-
-export type BashTimeoutAdjustment = {
-  processId: string;
-  timeoutMs: number;
-  deadlineAt: string;
-  timedOut: boolean;
-};
-
-export type SessionEntry = {
-  id: string;
-  summary: string | null;
-  assistantReply: string | null;
-  assistantThinking: string | null;
-  assistantRefusal: string | null;
-  toolCalls: unknown[] | null;
-  status: SessionStatus;
-  failReason: string | null;
-  usage: ModelUsage | null;
-  usagePerModel: Record<string, ModelUsage> | null;
-  activeTokens: number;
-  createTime: string;
-  updateTime: string;
-  processes: Map<string, SessionProcessEntry> | null; // {pid: process info}
-};
-
-export type SessionsIndex = {
-  version: 1;
-  entries: SessionEntry[];
-  originalPath: string;
-};
-
-export type SessionMessageRole = "system" | "user" | "assistant" | "tool";
-
-export type MessageMeta = {
-  function?: unknown;
-  paramsMd?: string;
-  resultMd?: string;
-  asThinking?: boolean;
-  isSummary?: boolean;
-  isModelChange?: boolean;
-  skill?: SkillInfo;
-};
-
-export type SessionMessage = {
-  id: string;
-  sessionId: string;
-  role: SessionMessageRole;
-  content: string | null;
-  contentParams: unknown | null;
-  messageParams: unknown | null;
-  compacted: boolean;
-  visible: boolean;
-  createTime: string;
-  updateTime: string;
-  meta?: MessageMeta;
-  html?: string;
-  checkpointHash?: string;
-};
-
-export type UndoTarget = {
-  message: SessionMessage;
-  index: number;
-  canRestoreCode: boolean;
-};
-
-export type UserPromptContent = {
-  text?: string;
-  imageUrls?: string[];
-  skills?: SkillInfo[];
-};
-
-export type SkillInfo = {
-  name: string;
-  path: string;
-  description: string;
-  isLoaded?: boolean;
-};
+export { getCompactPromptTokenThreshold, extractPinnedConstraints } from "./session/helpers";
+import {
+  anySignal,
+  isUsageRecord,
+  summarizeCompletionOptions,
+  addUsageValue,
+  accumulateUsage,
+  usageWithRequestCount,
+  accumulateUsagePerModel,
+  getExtensionRoot,
+  getTotalTokens,
+  readPositiveIntegerEnv,
+  getLiMaRouterRequestTimeoutMs,
+  getLiMaRouterMaxRetries,
+  getCompactPromptTokenThreshold,
+  extractPinnedConstraints,
+} from "./session/helpers";
 
 type SessionManagerOptions = {
   projectRoot: string;
@@ -304,21 +123,6 @@ type SessionManagerOptions = {
   onLlmStreamProgress?: (progress: LlmStreamProgress) => void;
   onMcpStatusChanged?: () => void;
   onProcessStdout?: (pid: number, chunk: string) => void;
-};
-
-export type LlmStreamProgress = {
-  requestId: string;
-  sessionId?: string;
-  startedAt: string;
-  estimatedTokens: number;
-  formattedTokens: string;
-  phase: "start" | "update" | "end";
-  transport?: "stream" | "non_stream";
-  model?: string;
-  attempt?: number;
-  maxAttempts?: number;
-  timeoutMs?: number;
-  lastError?: string;
 };
 
 export class SessionManager {
@@ -356,6 +160,11 @@ export class SessionManager {
   }
 
   async initMcpServers(servers?: Record<string, McpServerConfig>): Promise<void> {
+    // Auto-register CodeGraph MCP when the project has a .codegraph/ index.
+    // User-configured servers (from settings) take precedence over auto-detection.
+    const codegraphServers = getCodeGraphMcpServers(this.projectRoot);
+    const mergedServers = codegraphServers ? { ...codegraphServers, ...servers } : servers;
+
     this.mcpManager.setOnToolsListChanged(() => {
       this.mcpToolDefinitions = this.mcpManager.getMcpToolDefinitions();
     });
@@ -363,7 +172,7 @@ export class SessionManager {
     this.mcpManager.setOnStatusChanged(() => {
       this.onMcpStatusChanged?.();
     });
-    await this.mcpManager.initialize(servers);
+    await this.mcpManager.initialize(mergedServers);
     this.mcpToolDefinitions = this.mcpManager.getMcpToolDefinitions();
   }
 
@@ -380,33 +189,19 @@ export class SessionManager {
     this.mcpManager.disconnect();
   }
 
+  private get llmCallbacks(): llmStream.ChatCompletionStreamCallbacks {
+    return { onLlmStreamProgress: this.onLlmStreamProgress };
+  }
+
+  // Pre-compiled CJK character regex for performance
+  private static readonly CJK_RE = /[㐀-鿿豈-﫿]/gu;
+
   private estimateStreamTokens(text: string): number {
-    let tokens = 0;
-    for (const char of text) {
-      tokens += /[\u3400-\u9fff\uf900-\ufaff]/u.test(char) ? 0.6 : 0.3;
-    }
-    return tokens;
+    return llmStream.estimateStreamTokens(text);
   }
 
   private formatEstimatedTokens(tokens: number): string {
-    if (tokens <= 0) {
-      return "0";
-    }
-
-    const roundedTokens = Math.round(tokens);
-    if (roundedTokens <= 0) {
-      return "0";
-    }
-
-    if (roundedTokens < 100) {
-      return String(roundedTokens);
-    }
-
-    if (roundedTokens < 10000) {
-      return `${Number((roundedTokens / 1000).toFixed(1))}k`;
-    }
-
-    return `${Math.round(roundedTokens / 1000)}k`;
+    return llmStream.formatEstimatedTokens(tokens);
   }
 
   private emitLlmStreamProgress(
@@ -431,21 +226,11 @@ export class SessionManager {
   }
 
   private isAbortLikeError(error: unknown): boolean {
-    if (!(error instanceof Error)) {
-      return false;
-    }
-
-    return error.name === "AbortError" || error.constructor.name === "APIUserAbortError";
+    return llmStream.isAbortLikeError(error);
   }
 
   private throwIfAborted(signal?: AbortSignal | null): void {
-    if (!signal?.aborted) {
-      return;
-    }
-
-    const error = new Error("Request was aborted.");
-    error.name = "AbortError";
-    throw error;
+    llmStream.throwIfAborted(signal);
   }
 
   private async createChatCompletionStream(
@@ -458,450 +243,33 @@ export class SessionManager {
     choices?: Array<{ message?: Record<string, unknown> }>;
     usage?: ModelUsage | null;
   }> {
-    const requestId = crypto.randomUUID();
-    const startedAt = new Date().toISOString();
-    const startedAtMs = Date.now();
-    let estimatedTokens = 0;
-    const transport = isLiMaRouterBaseURL(debug?.baseURL) ? "non_stream" : "stream";
-    const progressModel = typeof request.model === "string" ? request.model : undefined;
-    this.emitLlmStreamProgress(requestId, startedAt, estimatedTokens, "start", sessionId, transport, {
-      model: progressModel,
-    });
-
-    const streamRequest = {
-      ...request,
-      stream: true,
-      stream_options: {
-        ...(isUsageRecord(request.stream_options) ? request.stream_options : {}),
-        include_usage: true,
-      },
-    };
-
-    if (transport === "non_stream") {
-      const nonStreamRequest: Record<string, unknown> = {
-        ...request,
-        stream: false,
-      };
-      delete nonStreamRequest.stream_options;
-      const timeoutMs = getLiMaRouterRequestTimeoutMs();
-      const maxRetries = getLiMaRouterMaxRetries();
-      const requestOptions: Record<string, unknown> = { ...options, timeout: timeoutMs, maxRetries };
-      this.emitLlmStreamProgress(requestId, startedAt, estimatedTokens, "update", sessionId, transport, {
-        attempt: 1,
-        maxAttempts: maxRetries + 1,
-        timeoutMs,
-        model: progressModel,
-      });
-      try {
-        const response = await (
-          client.chat.completions.create as unknown as (
-            body: Record<string, unknown>,
-            options?: Record<string, unknown>
-          ) => Promise<unknown>
-        )(nonStreamRequest, requestOptions);
-        this.logChatCompletionDebug(debug, {
-          timestamp: new Date().toISOString(),
-          location: debug?.location ?? "SessionManager.createChatCompletionStream:lima-non-stream",
-          requestId,
-          sessionId,
-          model: typeof request.model === "string" ? request.model : undefined,
-          baseURL: debug?.baseURL,
-          durationMs: Date.now() - startedAtMs,
-          params: { ...debug?.params, options: summarizeCompletionOptions(requestOptions), transport: "non_stream" },
-          request: nonStreamRequest,
-          response,
-        });
-        return response as { choices?: Array<{ message?: Record<string, unknown> }>; usage?: ModelUsage | null };
-      } catch (error) {
-        if (this.isLiMaRouterBlockedError(error)) {
-          const fallbackRequest = this.buildLiMaRouterBlockedFallbackRequest(nonStreamRequest);
-          try {
-            const response = await (
-              client.chat.completions.create as unknown as (
-                body: Record<string, unknown>,
-                options?: Record<string, unknown>
-              ) => Promise<unknown>
-            )(fallbackRequest, requestOptions);
-            this.logChatCompletionDebug(debug, {
-              timestamp: new Date().toISOString(),
-              location: "SessionManager.createChatCompletionStream:lima-non-stream-blocked-fallback",
-              requestId,
-              sessionId,
-              model: typeof request.model === "string" ? request.model : undefined,
-              baseURL: debug?.baseURL,
-              durationMs: Date.now() - startedAtMs,
-              params: {
-                ...debug?.params,
-                options: summarizeCompletionOptions(requestOptions),
-                transport: "non_stream",
-                fallback: "blocked_request",
-              },
-              request: fallbackRequest,
-              response,
-            });
-            return response as { choices?: Array<{ message?: Record<string, unknown> }>; usage?: ModelUsage | null };
-          } catch (fallbackError) {
-            const localResponse = this.buildLiMaRouterBlockedLocalResponse(error, fallbackError);
-            this.logChatCompletionDebug(debug, {
-              timestamp: new Date().toISOString(),
-              location: "SessionManager.createChatCompletionStream:lima-non-stream-blocked-local",
-              requestId,
-              sessionId,
-              model: typeof request.model === "string" ? request.model : undefined,
-              baseURL: debug?.baseURL,
-              durationMs: Date.now() - startedAtMs,
-              params: {
-                ...debug?.params,
-                options: summarizeCompletionOptions(requestOptions),
-                transport: "non_stream",
-                fallback: "local_blocked_report",
-              },
-              request: fallbackRequest,
-              error: {
-                name: "LiMaRouterBlockedFallbackError",
-                message: `initial: ${error instanceof Error ? error.message : String(error)}; fallback: ${
-                  fallbackError instanceof Error ? fallbackError.message : String(fallbackError)
-                }`,
-                stack: JSON.stringify({
-                  initial: normalizeDebugError(error),
-                  fallback: normalizeDebugError(fallbackError),
-                }),
-              },
-              response: localResponse,
-            });
-            return localResponse;
-          }
-        }
-        this.logChatCompletionDebug(debug, {
-          timestamp: new Date().toISOString(),
-          location: debug?.location ?? "SessionManager.createChatCompletionStream:lima-non-stream",
-          requestId,
-          sessionId,
-          model: typeof request.model === "string" ? request.model : undefined,
-          baseURL: debug?.baseURL,
-          durationMs: Date.now() - startedAtMs,
-          params: { ...debug?.params, options: summarizeCompletionOptions(requestOptions), transport: "non_stream" },
-          request: nonStreamRequest,
-          error: normalizeDebugError(error),
-        });
-        logApiError({
-          timestamp: new Date().toISOString(),
-          location: "SessionManager.createChatCompletionStream:lima-non-stream",
-          requestId,
-          sessionId,
-          model: typeof request.model === "string" ? request.model : undefined,
-          error: {
-            name: error instanceof Error ? error.name : "UnknownError",
-            message: error instanceof Error ? error.message : String(error),
-            stack: error instanceof Error ? error.stack : undefined,
-          },
-          request: nonStreamRequest,
-        });
-        throw error;
-      } finally {
-        this.emitLlmStreamProgress(requestId, startedAt, estimatedTokens, "end", sessionId, transport);
-      }
-    }
-
-    let response: unknown;
-    try {
-      response = await (
-        client.chat.completions.create as unknown as (
-          body: Record<string, unknown>,
-          options?: Record<string, unknown>
-        ) => Promise<unknown>
-      )(streamRequest, options);
-    } catch (error) {
-      this.logChatCompletionDebug(debug, {
-        timestamp: new Date().toISOString(),
-        location: debug?.location ?? "SessionManager.createChatCompletionStream:create",
-        requestId,
-        sessionId,
-        model: typeof request.model === "string" ? request.model : undefined,
-        baseURL: debug?.baseURL,
-        durationMs: Date.now() - startedAtMs,
-        params: { ...debug?.params, options: summarizeCompletionOptions(options) },
-        request: streamRequest,
-        error: normalizeDebugError(error),
-      });
-      logApiError({
-        timestamp: new Date().toISOString(),
-        location: "SessionManager.createChatCompletionStream:create",
-        requestId,
-        sessionId,
-        model: typeof request.model === "string" ? request.model : undefined,
-        error: {
-          name: error instanceof Error ? error.name : "UnknownError",
-          message: error instanceof Error ? error.message : String(error),
-          stack: error instanceof Error ? error.stack : undefined,
-        },
-        request: streamRequest,
-      });
-      this.emitLlmStreamProgress(requestId, startedAt, estimatedTokens, "end", sessionId, transport);
-      throw error;
-    }
-
-    if (!response || typeof (response as { [Symbol.asyncIterator]?: unknown })[Symbol.asyncIterator] !== "function") {
-      this.emitLlmStreamProgress(requestId, startedAt, estimatedTokens, "end", sessionId, transport);
-      this.logChatCompletionDebug(debug, {
-        timestamp: new Date().toISOString(),
-        location: debug?.location ?? "SessionManager.createChatCompletionStream",
-        requestId,
-        sessionId,
-        model: typeof request.model === "string" ? request.model : undefined,
-        baseURL: debug?.baseURL,
-        durationMs: Date.now() - startedAtMs,
-        params: { ...debug?.params, options: summarizeCompletionOptions(options) },
-        request: streamRequest,
-        response,
-      });
-      return response as { choices?: Array<{ message?: Record<string, unknown> }>; usage?: ModelUsage | null };
-    }
-
-    let content = "";
-    let reasoningContent = "";
-    let refusal: string | null = null;
-    let usage: ModelUsage | null = null;
-    const responseChunks: unknown[] = [];
-    const toolCallsByIndex = new Map<
-      number,
-      {
-        id?: string;
-        type?: string;
-        function?: { name?: string; arguments?: string };
-      }
-    >();
-
-    const trackText = (value: unknown) => {
-      if (typeof value !== "string" || value.length === 0) {
-        return;
-      }
-      estimatedTokens += this.estimateStreamTokens(value);
-      this.emitLlmStreamProgress(requestId, startedAt, estimatedTokens, "update", sessionId, transport);
-    };
-
-    try {
-      for await (const chunk of response as AsyncIterable<Record<string, unknown>>) {
-        if (debug?.enabled) {
-          responseChunks.push(chunk);
-        }
-        if ("usage" in chunk && chunk.usage != null) {
-          usage = chunk.usage as ModelUsage;
-        }
-
-        const choices = Array.isArray(chunk.choices) ? chunk.choices : [];
-        for (const choice of choices) {
-          const delta = isUsageRecord(choice) && isUsageRecord(choice.delta) ? choice.delta : null;
-          if (!delta) {
-            continue;
-          }
-
-          const contentDelta = delta.content;
-          if (typeof contentDelta === "string") {
-            content += contentDelta;
-            trackText(contentDelta);
-          }
-
-          const reasoningDelta = delta.reasoning_content ?? delta.reasoning;
-          if (typeof reasoningDelta === "string") {
-            reasoningContent += reasoningDelta;
-            trackText(reasoningDelta);
-          }
-
-          if (typeof delta.refusal === "string") {
-            refusal = `${refusal ?? ""}${delta.refusal}`;
-            trackText(delta.refusal);
-          }
-
-          const rawToolCalls = delta.tool_calls;
-          if (Array.isArray(rawToolCalls)) {
-            for (const rawToolCall of rawToolCalls) {
-              if (!isUsageRecord(rawToolCall)) {
-                continue;
-              }
-              const index = typeof rawToolCall.index === "number" ? rawToolCall.index : toolCallsByIndex.size;
-              const current = toolCallsByIndex.get(index) ?? {};
-              if (typeof rawToolCall.id === "string") {
-                current.id = rawToolCall.id;
-              }
-              if (typeof rawToolCall.type === "string") {
-                current.type = rawToolCall.type;
-              }
-              const rawFunction = isUsageRecord(rawToolCall.function) ? rawToolCall.function : null;
-              if (rawFunction) {
-                current.function = current.function ?? {};
-                if (typeof rawFunction.name === "string") {
-                  current.function.name = `${current.function.name ?? ""}${rawFunction.name}`;
-                  trackText(rawFunction.name);
-                }
-                if (typeof rawFunction.arguments === "string") {
-                  current.function.arguments = `${current.function.arguments ?? ""}${rawFunction.arguments}`;
-                  trackText(rawFunction.arguments);
-                }
-              }
-              toolCallsByIndex.set(index, current);
-            }
-          }
-        }
-      }
-    } catch (error) {
-      this.logChatCompletionDebug(debug, {
-        timestamp: new Date().toISOString(),
-        location: debug?.location ?? "SessionManager.createChatCompletionStream:stream",
-        requestId,
-        sessionId,
-        model: typeof request.model === "string" ? request.model : undefined,
-        baseURL: debug?.baseURL,
-        durationMs: Date.now() - startedAtMs,
-        params: { ...debug?.params, options: summarizeCompletionOptions(options) },
-        request: streamRequest,
-        responseChunks,
-        error: normalizeDebugError(error),
-      });
-      logApiError({
-        timestamp: new Date().toISOString(),
-        location: "SessionManager.createChatCompletionStream:stream",
-        requestId,
-        sessionId,
-        model: typeof request.model === "string" ? request.model : undefined,
-        error: {
-          name: error instanceof Error ? error.name : "UnknownError",
-          message: error instanceof Error ? error.message : String(error),
-          stack: error instanceof Error ? error.stack : undefined,
-        },
-        request: streamRequest,
-      });
-      throw error;
-    } finally {
-      this.emitLlmStreamProgress(requestId, startedAt, estimatedTokens, "end", sessionId, transport);
-    }
-
-    const toolCalls = Array.from(toolCallsByIndex.entries())
-      .sort(([left], [right]) => left - right)
-      .map(([, toolCall]) => toolCall);
-    const normalizedToolCalls = this.normalizeLlmToolCalls(toolCalls);
-    const message: Record<string, unknown> = { content };
-    if (normalizedToolCalls) {
-      message.tool_calls = normalizedToolCalls;
-    }
-    if (reasoningContent.length > 0) {
-      message.reasoning_content = reasoningContent;
-    }
-    if (refusal != null) {
-      message.refusal = refusal;
-    }
-
-    const finalResponse = {
-      choices: [{ message }],
-      usage,
-    };
-    this.logChatCompletionDebug(debug, {
-      timestamp: new Date().toISOString(),
-      location: debug?.location ?? "SessionManager.createChatCompletionStream",
-      requestId,
-      sessionId,
-      model: typeof request.model === "string" ? request.model : undefined,
-      baseURL: debug?.baseURL,
-      durationMs: Date.now() - startedAtMs,
-      params: { ...debug?.params, options: summarizeCompletionOptions(options) },
-      request: streamRequest,
-      responseChunks,
-      response: finalResponse,
-    });
-    return finalResponse;
+    return llmStream.createChatCompletionStream(this.llmCallbacks, client, request, options, sessionId, debug);
   }
 
   private isLiMaRouterBlockedError(error: unknown): boolean {
-    if (!error || typeof error !== "object") {
-      return false;
-    }
-    const record = error as { status?: unknown; message?: unknown };
-    const message = typeof record.message === "string" ? record.message.toLowerCase() : "";
-    return record.status === 403 || message.includes("403") || message.includes("blocked");
+    return llmStream.isLiMaRouterBlockedError(error);
   }
 
   private buildLiMaRouterBlockedFallbackRequest(request: Record<string, unknown>): Record<string, unknown> {
-    const lastUserContent = this.getLastTextMessageContent(request.messages, "user");
-    const fallbackNote =
-      "上一次带本地工具的 LiMa Router 请求在执行前被拦截。请不要调用本地工具，明确说明实时项目检查被拦截。";
-    return {
-      model: request.model,
-      messages: [
-        {
-          role: "system",
-          content:
-            "你是 LiMa Code。上一次带工具请求被上游路由拦截。请给出不使用工具的简洁兜底回答，说明被拦截的层级，不要假装本地检查已经成功。",
-        },
-        {
-          role: "user",
-          content: lastUserContent ? `${lastUserContent}\n\n${fallbackNote}` : fallbackNote,
-        },
-      ],
-      stream: false,
-    };
+    return llmStream.buildLiMaRouterBlockedFallbackRequest(request);
   }
 
   private buildLiMaRouterBlockedLocalResponse(
     initialError: unknown,
     fallbackError: unknown
   ): { choices: Array<{ message: Record<string, unknown> }>; usage: null } {
-    const initialMessage = initialError instanceof Error ? initialError.message : String(initialError);
-    const fallbackMessage = fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
-    return {
-      choices: [
-        {
-          message: {
-            content: [
-              "LiMa Router 在可用响应产出前拦截了模型请求。",
-              "",
-              "层级: 上游模型或供应商准入层",
-              `初始请求: ${initialMessage}`,
-              `兜底请求: ${fallbackMessage}`,
-              "",
-              "不要假设本轮已有任何本地工具执行结果。如果持续出现，请运行 /lima doctor，或切换供应商/模型路由后重试。",
-            ].join("\n"),
-          },
-        },
-      ],
-      usage: null,
-    };
+    return llmStream.buildLiMaRouterBlockedLocalResponse(initialError, fallbackError);
   }
 
   private getLastTextMessageContent(messages: unknown, role: string): string {
-    if (!Array.isArray(messages)) {
-      return "";
-    }
-
-    for (let index = messages.length - 1; index >= 0; index -= 1) {
-      const message = messages[index] as { role?: unknown; content?: unknown };
-      if (message?.role !== role) {
-        continue;
-      }
-      if (typeof message.content === "string") {
-        return message.content;
-      }
-      if (!Array.isArray(message.content)) {
-        continue;
-      }
-      const textParts = message.content
-        .map((part) =>
-          (part as { type?: unknown; text?: unknown }).type === "text" ? (part as { text?: unknown }).text : ""
-        )
-        .filter((text): text is string => typeof text === "string" && text.length > 0);
-      return textParts.join("\n");
-    }
-
-    return "";
+    return llmStream.getLastTextMessageContent(messages, role);
   }
 
   private logChatCompletionDebug(
     debug: ChatCompletionDebugOptions | undefined,
     entry: Parameters<typeof logOpenAIChatCompletionDebug>[0]
   ): void {
-    if (!debug?.enabled) {
-      return;
-    }
-    logOpenAIChatCompletionDebug(entry);
+    llmStream.logChatCompletionDebug(debug, entry);
   }
 
   async identifyMatchingSkillNames(
@@ -1858,23 +1226,7 @@ ${skillMd}
   }
 
   listSessionMessages(sessionId: string): SessionMessage[] {
-    const messagePath = this.getSessionMessagesPath(sessionId);
-    if (!fs.existsSync(messagePath)) {
-      return [];
-    }
-
-    const raw = fs.readFileSync(messagePath, "utf8");
-    const lines = raw.split(/\r?\n/).filter((line) => line.trim().length > 0);
-    const messages: SessionMessage[] = [];
-    for (const line of lines) {
-      try {
-        const parsed = JSON.parse(line) as SessionMessage;
-        messages.push(this.normalizeSessionMessage(parsed));
-      } catch {
-        // ignore malformed line
-      }
-    }
-    return messages;
+    return sessionStorage.listSessionMessages(this.projectRoot, sessionId);
   }
 
   listUndoTargets(sessionId: string): UndoTarget[] {
@@ -2035,82 +1387,31 @@ ${skillMd}
   }
 
   private isUndoTargetMessage(message: SessionMessage): boolean {
-    return message.role === "user" && message.visible && !message.compacted;
-  }
-
-  private ensureProjectDir(): string {
-    const { projectDir } = this.getProjectStorage();
-    fs.mkdirSync(projectDir, { recursive: true });
-    return projectDir;
+    return sessionStorage.isUndoTargetMessage(message);
   }
 
   private loadSessionsIndex(): SessionsIndex {
-    const { sessionsIndexPath } = this.getProjectStorage();
-    this.ensureProjectDir();
-
-    if (!fs.existsSync(sessionsIndexPath)) {
-      return { version: 1, entries: [], originalPath: this.projectRoot };
-    }
-
-    try {
-      const raw = fs.readFileSync(sessionsIndexPath, "utf8");
-      const parsed = JSON.parse(raw) as SessionsIndex;
-      const entries = Array.isArray(parsed.entries)
-        ? parsed.entries.map((entry) => this.normalizeSessionEntry(entry))
-        : [];
-      return {
-        version: 1,
-        entries,
-        originalPath: parsed.originalPath || this.projectRoot,
-      };
-    } catch {
-      return { version: 1, entries: [], originalPath: this.projectRoot };
-    }
+    return sessionStorage.loadSessionsIndex(this.projectRoot);
   }
 
   private saveSessionsIndex(index: SessionsIndex): void {
-    const { sessionsIndexPath } = this.getProjectStorage();
-    this.ensureProjectDir();
-    const normalized = {
-      version: 1,
-      entries: index.entries.map((entry) => ({
-        ...entry,
-        processes: this.serializeProcesses(entry.processes),
-      })),
-      originalPath: this.projectRoot,
-    };
-    fs.writeFileSync(sessionsIndexPath, JSON.stringify(normalized, null, 2), "utf8");
+    sessionStorage.saveSessionsIndex(this.projectRoot, index);
   }
 
   private getSessionMessagesPath(sessionId: string): string {
-    const { projectDir } = this.getProjectStorage();
-    return path.join(projectDir, `${sessionId}.jsonl`);
+    return sessionStorage.getSessionMessagesPath(this.projectRoot, sessionId);
   }
 
   private removeSessionMessages(sessionIds: string[]): void {
-    for (const sessionId of sessionIds) {
-      const messagePath = this.getSessionMessagesPath(sessionId);
-      try {
-        if (fs.existsSync(messagePath)) {
-          fs.unlinkSync(messagePath);
-        }
-      } catch {
-        // ignore delete failures
-      }
-    }
+    sessionStorage.removeSessionMessages(this.projectRoot, sessionIds);
   }
 
   private appendSessionMessage(sessionId: string, message: SessionMessage): void {
-    this.ensureProjectDir();
-    const messagePath = this.getSessionMessagesPath(sessionId);
-    fs.appendFileSync(messagePath, `${JSON.stringify(message)}\n`, "utf8");
+    sessionStorage.appendSessionMessage(this.projectRoot, sessionId, message);
   }
 
   private saveSessionMessages(sessionId: string, messages: SessionMessage[]): void {
-    this.ensureProjectDir();
-    const messagePath = this.getSessionMessagesPath(sessionId);
-    const payload = messages.map((message) => JSON.stringify(message)).join("\n");
-    fs.writeFileSync(messagePath, payload ? `${payload}\n` : "", "utf8");
+    sessionStorage.saveSessionMessages(this.projectRoot, sessionId, messages);
   }
 
   private updateSessionEntry(sessionId: string, updater: (entry: SessionEntry) => SessionEntry): SessionEntry | null {
@@ -2290,109 +1591,15 @@ ${skillMd}
    * Detects Chinese/English thinking patterns and extracts the actual answer.
    */
   private stripThinkingContent(content: string): string {
-    // Remove explicit think blocks
-    const thinkTagRe = new RegExp("<think>[\\s\\S]*?<\\/think>\\s*", "g");
-    const cleaned = content.replace(thinkTagRe, "").trim();
-    const text = cleaned || content.trim();
-
-    // Extract code blocks as the real answer
-    const codeBlocks = text.match(/```[\s\S]*?```/g);
-    if (codeBlocks && codeBlocks.length > 0) {
-      const afterCode = text.substring(text.lastIndexOf("```") + 3).trim();
-      return codeBlocks.join("\n\n") + (afterCode.length > 5 ? "\n\n" + afterCode : "");
-    }
-
-    // Extract embedded answer only when it's clearly in the text
-    // "答案是2" → "2", "F(42) = 267914296" → "267914296"
-    const answerMatch =
-      text.match(/[答结][案果][是为：:]\s*[「"']?([^。\n"']+)/) ||
-      text.match(/[Aa]nswer[:\s]+([^.\n]+)/) ||
-      text.match(/F\(\d+\)\s*=\s*(\d[\d,. ]*)/);
-    if (answerMatch && answerMatch[1] && answerMatch[1].trim().length > 0) {
-      return answerMatch[1].trim();
-    }
-
-    // Detect verbose thinking — count thinking-like lines
-    const lines = text.split("\n").filter((l) => l.trim().length > 0);
-    const thinkingRe =
-      /^(?:用户[问要需想]|根据[我我的指约]|我[需应可]该|让我[来写提分]|这是一个|简单[来分]析|根据约束|根据指令|作为[一]|首先[我需]|我们需要|值得注意|The user|I need to|Let me|I should|Based on|I can|For this|This is|I will|In this|To solve|We need|It is|There are|My approach|The answer|I think|Let's|Here is|For this)/;
-    let thinkingLines = 0;
-    for (const line of lines) {
-      if (thinkingRe.test(line.trim())) {
-        thinkingLines++;
-      }
-    }
-
-    // Also detect numbered thinking: "1. xxx\n2. xxx" pattern
-    const numberedThinking = text.match(/^[\d]+\.\s+\S+/gm);
-    if (numberedThinking && numberedThinking.length >= 3 && !text.includes("```")) {
-      thinkingLines = Math.max(thinkingLines, numberedThinking.length);
-    }
-
-    if (thinkingLines >= 1 && thinkingLines >= lines.length * 0.15) {
-      // Find last non-thinking line (the actual answer)
-      for (let i = lines.length - 1; i >= 0; i--) {
-        if (!thinkingRe.test(lines[i].trim()) && lines[i].trim().length > 3) {
-          return lines.slice(i).join("\n").trim();
-        }
-      }
-      // All lines are thinking — return original content (don't strip to empty)
-      return content;
-    }
-
-    return content;
+    return messageBuilder.stripThinkingContent(content);
   }
 
   private normalizeLlmToolCalls(rawToolCalls: unknown[] | null | undefined): unknown[] | null {
-    if (!Array.isArray(rawToolCalls) || rawToolCalls.length === 0) {
-      return null;
-    }
-
-    return rawToolCalls.map((toolCall) => {
-      if (!toolCall || typeof toolCall !== "object" || Array.isArray(toolCall)) {
-        return toolCall;
-      }
-
-      const record = toolCall as Record<string, unknown>;
-      const id = typeof record.id === "string" ? record.id.trim() : "";
-      if (id) {
-        return toolCall;
-      }
-
-      return {
-        ...record,
-        id: this.generateToolCallId(),
-      };
-    });
+    return llmStream.normalizeLlmToolCalls(rawToolCalls);
   }
 
   private getRepeatedToolCallLoopMessage(messages: SessionMessage[], toolCalls: unknown[] | null): string | null {
-    if (!toolCalls || toolCalls.length === 0) {
-      return null;
-    }
-
-    const previousCounts = new Map<string, number>();
-    for (const message of messages) {
-      for (const previousToolCall of this.getAssistantToolCalls(message)) {
-        const signature = this.getToolCallSignature(previousToolCall);
-        if (!signature) {
-          continue;
-        }
-        previousCounts.set(signature, (previousCounts.get(signature) ?? 0) + 1);
-      }
-    }
-
-    for (const toolCall of toolCalls) {
-      const signature = this.getToolCallSignature(toolCall);
-      if (!signature) {
-        continue;
-      }
-      if ((previousCounts.get(signature) ?? 0) >= 2) {
-        return `The model repeated the same tool call several times, so LiMa Code stopped the loop before running it again: ${this.formatToolCallSignatureForDisplay(signature)}. Refine the prompt or use /continue if you want another pass.`;
-      }
-    }
-
-    return null;
+    return messageBuilder.getRepeatedToolCallLoopMessage(messages, toolCalls);
   }
 
   private getToolCallSignature(toolCall: unknown): string | null {
@@ -2547,11 +1754,8 @@ ${skillMd}
     model: string,
     baseURL?: string
   ): ChatCompletionMessageParam[] {
-    const openAIMessages = this.buildOpenAIMessages(messages, thinkingEnabled, model);
-    if (!isLiMaRouterBaseURL(baseURL)) {
-      return openAIMessages;
-    }
-    return openAIMessages.map((message) => this.toLiMaRouterSafeMessage(message));
+    const agentsMdFile = this.getEffectiveProjectAgentsMdFile();
+    return messageBuilder.buildProviderOpenAIMessages(messages, thinkingEnabled, model, baseURL, agentsMdFile);
   }
 
   private toLiMaRouterSafeMessage(message: ChatCompletionMessageParam): ChatCompletionMessageParam {
@@ -3035,100 +2239,24 @@ ${skillMd}
   }
 
   private normalizeSessionEntry(entry: unknown): SessionEntry {
-    const value = entry && typeof entry === "object" ? (entry as Record<string, unknown>) : {};
-    return {
-      id: typeof value.id === "string" ? value.id : crypto.randomUUID(),
-      summary: typeof value.summary === "string" ? value.summary : null,
-      assistantReply: typeof value.assistantReply === "string" ? value.assistantReply : null,
-      assistantThinking: typeof value.assistantThinking === "string" ? value.assistantThinking : null,
-      assistantRefusal: typeof value.assistantRefusal === "string" ? value.assistantRefusal : null,
-      toolCalls: Array.isArray(value.toolCalls) ? value.toolCalls : null,
-      status: this.normalizeSessionStatus(value.status),
-      failReason: typeof value.failReason === "string" ? value.failReason : null,
-      usage: (value.usage as ModelUsage) ?? null,
-      usagePerModel: this.normalizeUsagePerModel(value),
-      activeTokens: typeof value.activeTokens === "number" ? value.activeTokens : 0,
-      createTime: typeof value.createTime === "string" ? value.createTime : new Date().toISOString(),
-      updateTime: typeof value.updateTime === "string" ? value.updateTime : new Date().toISOString(),
-      processes: this.deserializeProcesses(value.processes),
-    };
+    return sessionStorage.normalizeSessionEntry(entry);
   }
 
   private normalizeSessionStatus(status: unknown): SessionStatus {
-    if (
-      status === "failed" ||
-      status === "pending" ||
-      status === "processing" ||
-      status === "waiting_for_user" ||
-      status === "completed" ||
-      status === "interrupted"
-    ) {
-      return status;
-    }
-    return "pending";
+    return sessionStorage.normalizeSessionStatus(status);
   }
 
   private normalizeUsagePerModel(entry: Record<string, unknown>): Record<string, ModelUsage> | null {
-    if (!Object.prototype.hasOwnProperty.call(entry, "usagePerModel")) {
-      return null;
-    }
-    if (!isUsageRecord(entry.usagePerModel)) {
-      return null;
-    }
-    const usagePerModel: Record<string, ModelUsage> = {};
-    for (const [model, usage] of Object.entries(entry.usagePerModel)) {
-      if (!model || !isUsageRecord(usage)) {
-        continue;
-      }
-      usagePerModel[model] = usage as ModelUsage;
-    }
-    return usagePerModel;
+    return sessionStorage.normalizeUsagePerModel(entry);
   }
 
   private deserializeProcesses(value: unknown): Map<string, SessionProcessEntry> | null {
-    if (!value || typeof value !== "object") {
-      return null;
-    }
-    const processes = new Map<string, SessionProcessEntry>();
-    for (const [pid, entry] of Object.entries(value as Record<string, unknown>)) {
-      if (!pid) {
-        continue;
-      }
-      if (typeof entry === "string") {
-        // Backward compatibility for old format where just stored start time
-        processes.set(pid, { startTime: entry, command: "Running process..." });
-      } else if (typeof entry === "object" && entry !== null) {
-        const obj = entry as {
-          startTime?: unknown;
-          command?: unknown;
-          timeoutMs?: unknown;
-          deadlineAt?: unknown;
-          timedOut?: unknown;
-        };
-        const startTime = typeof obj.startTime === "string" ? obj.startTime : new Date().toISOString();
-        const command = typeof obj.command === "string" ? obj.command : "Running process...";
-        processes.set(pid, {
-          startTime,
-          command,
-          timeoutMs: typeof obj.timeoutMs === "number" ? obj.timeoutMs : undefined,
-          deadlineAt: typeof obj.deadlineAt === "string" ? obj.deadlineAt : undefined,
-          timedOut: typeof obj.timedOut === "boolean" ? obj.timedOut : undefined,
-        });
-      }
-    }
-    return processes.size > 0 ? processes : null;
+    return sessionStorage.deserializeProcesses(value);
   }
 
   private serializeProcesses(
     processes: Map<string, SessionProcessEntry> | null
   ): Record<string, SessionProcessEntry> | null {
-    if (!processes || processes.size === 0) {
-      return null;
-    }
-    const serialized: Record<string, SessionProcessEntry> = {};
-    for (const [pid, entry] of processes.entries()) {
-      serialized[pid] = entry;
-    }
-    return serialized;
+    return sessionStorage.serializeProcesses(processes);
   }
 }
