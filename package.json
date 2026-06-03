@@ -10,12 +10,12 @@
   },
   "homepage": "https://github.com/zhuguang-ZFG/deepcode-cli",
   "bin": {
-    "lima-code": "./bin/lima-code.js"
+    "lima-code": "./dist/cli.js"
   },
   "main": "./dist/cli.js",
   "files": [
-    "bin/lima-code.js",
     "dist/cli.js",
+    "scripts/fix-shebang.js",
     "templates/tools/**",
     "templates/prompts/**",
     "templates/skills/**",
@@ -37,6 +37,7 @@
     "build": "npm run check && npm run bundle && node -e \"require('fs').chmodSync('dist/cli.js', 0o755)\"",
     "test": "node src/tests/run-tests.mjs",
     "test:single": "tsx --test",
+    "postpack": "node scripts/fix-shebang.js",
     "prepack": "npm run build"
   },
   "devDependencies": {
