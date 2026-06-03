@@ -10,10 +10,11 @@
   },
   "homepage": "https://github.com/zhuguang-ZFG/deepcode-cli",
   "bin": {
-    "lima-code": "./dist/cli.js"
+    "lima-code": "./bin/lima-code.js"
   },
   "main": "./dist/cli.js",
   "files": [
+    "bin/lima-code.js",
     "dist/cli.js",
     "templates/tools/**",
     "templates/prompts/**",
