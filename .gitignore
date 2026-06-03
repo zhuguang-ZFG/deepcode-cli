@@ -1,5 +1,5 @@
 node_modules/
-dist/
+# dist/ - 构建产物需要提交以便 npm 从 GitHub 安装
 .lima-code/
 .DS_Store
 .idea/
