@@ -186,13 +186,13 @@ test("executeLiMaCommand runs lifecycle hooks with active skill candidates", asy
 
 test("executeLiMaCommand includes project skill rules in lifecycle hooks", async () => {
   const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), "lima-project-rule-runner-"));
-  fs.mkdirSync(path.join(projectRoot, ".lima-code"), { recursive: true });
+  fs.mkdirSync(path.join(projectRoot, ".lima"), { recursive: true });
   fs.writeFileSync(
-    path.join(projectRoot, ".lima-code", "skill-rules.json"),
+    path.join(projectRoot, ".lima", "skill-rules.json"),
     JSON.stringify({
       rules: [
         {
-          name: "lima-code:server-task-audit",
+          name: "lima:server-task-audit",
           reason: "Server task route changes require audit review.",
           keywords: ["agent", "audit"],
           files: ["routes/*.py"],
@@ -241,7 +241,7 @@ test("executeLiMaCommand includes project skill rules in lifecycle hooks", async
   });
 
   assert.equal(response.ok, true);
-  assert.equal(starts[0]?.includes("lima-code:server-task-audit"), true);
+  assert.equal(starts[0]?.includes("lima:server-task-audit"), true);
 });
 
 test("executeLiMaCommand claims the next pending task and submits the result", async () => {
@@ -322,7 +322,7 @@ test("executeLiMaCommand start returns an operator workbench", async () => {
   });
 
   assert.equal(response.ok, true);
-  assert.match(response.message, /LiMa Code 工作台/);
+  assert.match(response.message, /LiMa 工作台/);
   assert.match(response.message, /\/lima doctor/);
   assert.match(response.message, /\/lima review/);
   assert.match(response.message, /\/lima test --cmd/);
@@ -403,7 +403,7 @@ test("executeLiMaCommand reports when no pending task exists", async () => {
 
 test("executeLiMaCommand shows recent audit entries", async () => {
   const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), "lima-audit-command-"));
-  const dir = path.join(projectRoot, ".lima-code");
+  const dir = path.join(projectRoot, ".lima");
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(
     path.join(dir, "audit.jsonl"),
@@ -442,27 +442,27 @@ test("executeLiMaCommand handles daemon stop and status", async () => {
 });
 
 test("executeLiMaCommand rejects daemon start when env gate is off", async () => {
-  const previous = process.env.LIMA_CODE_WORKER_DAEMON;
-  delete process.env.LIMA_CODE_WORKER_DAEMON;
+  const previous = process.env.LIMA_WORKER_DAEMON;
+  delete process.env.LIMA_WORKER_DAEMON;
   try {
     const response = await executeLiMaCommand("/lima daemon start --max-minutes 1 --interval-ms 1", {
       projectRoot: process.cwd(),
       client: inertClient(),
     });
     assert.equal(response.ok, false);
-    assert.match(response.message, /LIMA_CODE_WORKER_DAEMON=1/);
+    assert.match(response.message, /LIMA_WORKER_DAEMON=1/);
   } finally {
     if (previous === undefined) {
-      delete process.env.LIMA_CODE_WORKER_DAEMON;
+      delete process.env.LIMA_WORKER_DAEMON;
     } else {
-      process.env.LIMA_CODE_WORKER_DAEMON = previous;
+      process.env.LIMA_WORKER_DAEMON = previous;
     }
   }
 });
 
 test("executeLiMaCommand daemon start idle-retries until a task appears", async () => {
-  const previous = process.env.LIMA_CODE_WORKER_DAEMON;
-  process.env.LIMA_CODE_WORKER_DAEMON = "1";
+  const previous = process.env.LIMA_WORKER_DAEMON;
+  process.env.LIMA_WORKER_DAEMON = "1";
   let polls = 0;
   let clock = 0;
   const task: LiMaTaskRunnerRequest = {
@@ -516,9 +516,9 @@ test("executeLiMaCommand daemon start idle-retries until a task appears", async 
     assert.ok(polls >= 2);
   } finally {
     if (previous === undefined) {
-      delete process.env.LIMA_CODE_WORKER_DAEMON;
+      delete process.env.LIMA_WORKER_DAEMON;
     } else {
-      process.env.LIMA_CODE_WORKER_DAEMON = previous;
+      process.env.LIMA_WORKER_DAEMON = previous;
     }
   }
 });
@@ -616,7 +616,7 @@ test("executeLiMaCommand work loop stops when session time budget is reached", a
 
 test("executeLiMaCommand quarantines repeated task failures", async () => {
   const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), "lima-quarantine-runner-"));
-  const stateDir = path.join(projectRoot, ".lima-code");
+  const stateDir = path.join(projectRoot, ".lima");
   fs.mkdirSync(stateDir, { recursive: true });
   fs.writeFileSync(
     path.join(stateDir, "quarantine.json"),

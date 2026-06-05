@@ -122,7 +122,7 @@ test("resolveSettings ignores removed legacy env.THINKING", () => {
   assert.equal(resolved.thinkingEnabled, false);
 });
 
-test("resolveSettingsSources applies user, project, and LiMa Code environment precedence", () => {
+test("resolveSettingsSources applies user, project, and LiMa environment precedence", () => {
   const resolved = resolveSettingsSources(
     {
       env: {
@@ -153,11 +153,11 @@ test("resolveSettingsSources applies user, project, and LiMa Code environment pr
       baseURL: "https://default.example.com",
     },
     {
-      LIMA_CODE_MODEL: "system-model",
-      LIMA_CODE_THINKING_ENABLED: "false",
-      LIMA_CODE_REASONING_EFFORT: "high",
-      LIMA_CODE_DEBUG_LOG_ENABLED: "true",
-      LIMA_CODE_WEBHOOK: "system-webhook",
+      LIMA_MODEL: "system-model",
+      LIMA_THINKING_ENABLED: "false",
+      LIMA_REASONING_EFFORT: "high",
+      LIMA_DEBUG_LOG_ENABLED: "true",
+      LIMA_WEBHOOK: "system-webhook",
       DEEPCODE_MODEL: "legacy-system-model",
       DEEPCODE_THINKING_ENABLED: "true",
       DEEPCODE_REASONING_EFFORT: "max",
@@ -239,7 +239,7 @@ test("resolveSettingsSources merges MCP env with documented priority", () => {
       baseURL: "https://default.example.com",
     },
     {
-      LIMA_CODE_MCP_GITHUB_PERSONAL_ACCESS_TOKEN: "system-global",
+      LIMA_MCP_GITHUB_PERSONAL_ACCESS_TOKEN: "system-global",
       DEEPCODE_MCP_GITHUB_PERSONAL_ACCESS_TOKEN: "legacy-system-global",
     }
   );

@@ -6,7 +6,7 @@ export const DEFAULT_LIMA_ROUTER_REQUEST_TIMEOUT_MS = 90_000;
 export const DEFAULT_LIMA_ROUTER_MAX_RETRIES = 3; // Increased from 1 for better transient failure recovery
 export const LIMA_ROUTER_PROJECT_INSTRUCTION_MIN_CHARS = 3000;
 
-export const LIMA_ROUTER_SAFE_SYSTEM_PROMPT = `你是 LiMa Code，一个交互式编码 CLI。
+export const LIMA_ROUTER_SAFE_SYSTEM_PROMPT = `你是 LiMa，一个交互式编码 CLI。
 
 帮助用户在当前项目中完成软件工程任务。
 需要本地检查或编辑时，使用提供的工具 schema。
@@ -28,7 +28,7 @@ export const LIMA_ROUTER_PROJECT_INSTRUCTION_SUMMARY = `项目指令位于本地
 - 优先沿用项目既有模式和聚焦编辑，避免宽泛重构。
 - 声称完成前必须运行相关本地验证。
 - 不要暴露敏感配置值，也不要提交本地运行数据、缓存、生成发布产物或调试日志。
-- LiMa Code 相关工作尽量验证真实 CLI/TUI 路径，并报告明确证据。
+- LiMa 相关工作尽量验证真实 CLI/TUI 路径，并报告明确证据。
 - 需要项目规则原文时，只读取 AGENTS.md 中相关的小段落，不要把整份文件塞进上下文。`;
 
 export const EMPTY_ASSISTANT_RESPONSE_MESSAGE =

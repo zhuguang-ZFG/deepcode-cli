@@ -1,11 +1,11 @@
-# LiMa Code Hooks + Skill Activation Design
+# LiMa Hooks + Skill Activation Design
 
 Updated: 2026-05-23
 Status: implementation-approved
 
 ## Goal
 
-LiMa Code should make each worker task easier to supervise by recording a small local task workspace and by selecting candidate skills from the task shape before execution.
+LiMa should make each worker task easier to supervise by recording a small local task workspace and by selecting candidate skills from the task shape before execution.
 
 This is a controlled-autonomy step. It does not add inbound Telegram commands, remote shell control, automatic skill promotion, automatic commits, or automatic deployment.
 
@@ -14,7 +14,7 @@ This is a controlled-autonomy step. It does not add inbound Telegram commands, r
 ```text
 LiMa task request
   -> skill activation rules
-  -> lifecycle start hook writes .lima-code/dev/active/<task>/context.md
+  -> lifecycle start hook writes .lima/dev/active/<task>/context.md
   -> existing task runner executes
   -> lifecycle stop hook writes summary.md and touched-files.txt
   -> existing audit / submit / Telegram flow continues
@@ -26,12 +26,12 @@ LiMa task request
   - Pure rule evaluation.
   - Reads task mode, goal, constraints, allowed tools, patch files, and test commands.
   - Returns ordered active skill candidates with reasons.
-  - Reads optional project rules from `.lima-code/skill-rules.json`.
+  - Reads optional project rules from `.lima/skill-rules.json`.
 
 - `src/lima/lifecycle-hooks.ts`
   - File-system hook writer.
   - Sanitizes task IDs before creating directories.
-  - Writes only under `.lima-code/dev/active`.
+  - Writes only under `.lima/dev/active`.
   - Hook failures are best-effort and must not change task execution semantics.
 
 - `src/lima/command-runner.ts`
@@ -56,13 +56,13 @@ The rules only create local hints. They do not load skills into the model automa
 
 ## Project Skill Rules
 
-Projects may add `.lima-code/skill-rules.json`:
+Projects may add `.lima/skill-rules.json`:
 
 ```json
 {
   "rules": [
     {
-      "name": "lima-code:telegram-review",
+      "name": "lima:telegram-review",
       "reason": "Telegram worker changes require callback and secret review.",
       "keywords": ["telegram", "callback", "bot"],
       "files": ["src/lima/*.ts"],
@@ -90,5 +90,5 @@ Malformed or missing config is ignored so worker execution cannot fail because o
 - Unit test skill rule matching and deduplication.
 - Unit test lifecycle hook file paths and output contents.
 - Unit test command runner integration with injected hooks.
-- Run targeted LiMa Code tests.
+- Run targeted LiMa tests.
 - Run `npm run check`.

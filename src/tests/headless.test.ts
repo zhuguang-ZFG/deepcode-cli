@@ -32,7 +32,7 @@ test("runHeadless parses non-stream JSON chat responses from LiMa", async () => 
       assert.equal(JSON.parse(String(init?.body)).stream, false);
       return new Response(
         JSON.stringify({
-          choices: [{ message: { content: "lima_code_cli_smoke_ok" } }],
+          choices: [{ message: { content: "lima_cli_smoke_ok" } }],
         }),
         {
           status: 200,
@@ -47,13 +47,13 @@ test("runHeadless parses non-stream JSON chat responses from LiMa", async () => 
     return new Response("unexpected", { status: 404 });
   }) as typeof fetch;
 
-  const result = await runHeadless("Reply exactly: lima_code_cli_smoke_ok", {
+  const result = await runHeadless("Reply exactly: lima_cli_smoke_ok", {
     json: true,
     projectRoot,
   });
 
   assert.equal(result.ok, true);
-  assert.equal(result.content, "lima_code_cli_smoke_ok");
+  assert.equal(result.content, "lima_cli_smoke_ok");
   assert.match(result.sessionId, /^hls-/);
   assert.equal(
     fetchUrls.some((url) => url.endsWith("/agent/learn/outcome")),
@@ -72,7 +72,7 @@ test("runHeadless parses Anthropic-style SSE text from LiMa", async () => {
       const body = [
         'event: message_start\ndata: {"type":"message_start","message":{"content":[]}}\n\n',
         'event: content_block_start\ndata: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}\n\n',
-        'event: content_block_delta\ndata: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"lima_code"}}\n\n',
+        'event: content_block_delta\ndata: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"lima"}}\n\n',
         'event: content_block_delta\ndata: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"_cli_smoke_ok"}}\n\n',
         'event: content_block_stop\ndata: {"type":"content_block_stop","index":0}\n\n',
         'event: message_stop\ndata: {"type":"message_stop"}\n\n',
@@ -88,13 +88,13 @@ test("runHeadless parses Anthropic-style SSE text from LiMa", async () => {
     return new Response("unexpected", { status: 404 });
   }) as typeof fetch;
 
-  const result = await runHeadless("Reply exactly: lima_code_cli_smoke_ok", {
+  const result = await runHeadless("Reply exactly: lima_cli_smoke_ok", {
     json: true,
     projectRoot,
   });
 
   assert.equal(result.ok, true);
-  assert.equal(result.content, "lima_code_cli_smoke_ok");
+  assert.equal(result.content, "lima_cli_smoke_ok");
   assert.match(result.sessionId, /^hls-/);
 });
 

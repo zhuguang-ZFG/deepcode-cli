@@ -51,7 +51,7 @@ export function writeLiMaTaskStopHook(projectRoot: string, result: LiMaAgentTask
 }
 
 function taskDirectory(projectRoot: string, taskId: string): string {
-  return path.join(projectRoot, ".lima-code", "dev", "active", sanitizeTaskId(taskId));
+  return path.join(projectRoot, ".lima", "dev", "active", sanitizeTaskId(taskId));
 }
 
 function sanitizeTaskId(taskId: string): string {

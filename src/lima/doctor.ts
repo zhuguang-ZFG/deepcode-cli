@@ -38,7 +38,7 @@ export async function runLiMaDoctor(options: LiMaDoctorOptions): Promise<LiMaDoc
   checks.push({
     name: "server_config",
     status: configured ? "pass" : "fail",
-    detail: configured ? "LiMa Server URL 和 API key 已配置。" : "请设置 LIMA_CODE_SERVER_URL 和 LIMA_CODE_API_KEY。",
+    detail: configured ? "LiMa Server URL 和 API key 已配置。" : "请设置 LIMA_SERVER_URL 和 LIMA_API_KEY。",
   });
 
   if (configured) {
@@ -139,15 +139,15 @@ function checkTelegram(env: NodeJS.ProcessEnv | undefined): LiMaDoctorCheck {
 }
 
 function checkSkillRules(projectRoot: string): LiMaDoctorCheck {
-  const file = path.join(projectRoot, ".lima-code", "skill-rules.json");
+  const file = path.join(projectRoot, ".lima", "skill-rules.json");
   return fs.existsSync(file)
-    ? { name: "project_skill_rules", status: "pass", detail: ".lima-code/skill-rules.json 已存在。" }
+    ? { name: "project_skill_rules", status: "pass", detail: ".lima/skill-rules.json 已存在。" }
     : { name: "project_skill_rules", status: "warn", detail: "未找到项目 skill rules 文件。" };
 }
 
 function checkAuditLog(projectRoot: string): LiMaDoctorCheck {
-  const file = path.join(projectRoot, ".lima-code", "audit.jsonl");
+  const file = path.join(projectRoot, ".lima", "audit.jsonl");
   return fs.existsSync(file)
-    ? { name: "audit_log", status: "pass", detail: ".lima-code/audit.jsonl 已存在。" }
+    ? { name: "audit_log", status: "pass", detail: ".lima/audit.jsonl 已存在。" }
     : { name: "audit_log", status: "warn", detail: "还没有本地 LiMa 审计日志。" };
 }

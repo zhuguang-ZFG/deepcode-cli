@@ -12,7 +12,7 @@ import {
 } from "../ui/App";
 
 function withTempHome(fn: (home: string) => void): void {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), "lima-code-settings-home-"));
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "lima-settings-home-"));
   const previousHome = process.env.HOME;
   const previousUserProfile = process.env.USERPROFILE;
 
@@ -53,43 +53,43 @@ function readJson(filePath: string): {
   };
 }
 
-test("readSettings prefers .lima-code and falls back to legacy .deepcode", () => {
+test("readSettings prefers .lima and falls back to legacy .deepcode", () => {
   withTempHome((home) => {
     writeJson(path.join(home, ".deepcode", "settings.json"), { env: { MODEL: "legacy-model" } });
     assert.equal(readSettings()?.env?.MODEL, "legacy-model");
 
-    writeJson(path.join(home, ".lima-code", "settings.json"), { env: { MODEL: "native-model" } });
+    writeJson(path.join(home, ".lima", "settings.json"), { env: { MODEL: "native-model" } });
     assert.equal(readSettings()?.env?.MODEL, "native-model");
   });
 });
 
-test("readProjectSettings prefers .lima-code and falls back to legacy .deepcode", () => {
-  const project = fs.mkdtempSync(path.join(os.tmpdir(), "lima-code-settings-project-"));
+test("readProjectSettings prefers .lima and falls back to legacy .deepcode", () => {
+  const project = fs.mkdtempSync(path.join(os.tmpdir(), "lima-settings-project-"));
 
   writeJson(path.join(project, ".deepcode", "settings.json"), { env: { MODEL: "legacy-project-model" } });
   assert.equal(readProjectSettings(project)?.env?.MODEL, "legacy-project-model");
 
-  writeJson(path.join(project, ".lima-code", "settings.json"), { env: { MODEL: "native-project-model" } });
+  writeJson(path.join(project, ".lima", "settings.json"), { env: { MODEL: "native-project-model" } });
   assert.equal(readProjectSettings(project)?.env?.MODEL, "native-project-model");
 });
 
-test("writeSettings creates .lima-code user settings", () => {
+test("writeSettings creates .lima user settings", () => {
   withTempHome((home) => {
     writeSettings({ env: { MODEL: "written-model" } });
 
-    const nativePath = path.join(home, ".lima-code", "settings.json");
+    const nativePath = path.join(home, ".lima", "settings.json");
     assert.equal(fs.existsSync(nativePath), true);
     assert.equal(fs.existsSync(path.join(home, ".deepcode", "settings.json")), false);
     assert.equal(readJson(nativePath).env?.MODEL, "written-model");
   });
 });
 
-test("writeProjectSettings creates .lima-code project settings", () => {
-  const project = fs.mkdtempSync(path.join(os.tmpdir(), "lima-code-settings-project-"));
+test("writeProjectSettings creates .lima project settings", () => {
+  const project = fs.mkdtempSync(path.join(os.tmpdir(), "lima-settings-project-"));
 
   writeProjectSettings({ env: { MODEL: "project-written" } }, project);
 
-  const nativePath = path.join(project, ".lima-code", "settings.json");
+  const nativePath = path.join(project, ".lima", "settings.json");
   assert.equal(fs.existsSync(nativePath), true);
   assert.equal(fs.existsSync(path.join(project, ".deepcode", "settings.json")), false);
   assert.equal(readJson(nativePath).env?.MODEL, "project-written");
@@ -97,9 +97,9 @@ test("writeProjectSettings creates .lima-code project settings", () => {
 
 test("writeModelConfigSelection updates existing legacy project settings when native project settings is absent", () => {
   withTempHome(() => {
-    const project = fs.mkdtempSync(path.join(os.tmpdir(), "lima-code-settings-project-"));
+    const project = fs.mkdtempSync(path.join(os.tmpdir(), "lima-settings-project-"));
     const legacyPath = path.join(project, ".deepcode", "settings.json");
-    const nativePath = path.join(project, ".lima-code", "settings.json");
+    const nativePath = path.join(project, ".lima", "settings.json");
     writeJson(legacyPath, { env: { MODEL: "old-model" }, thinkingEnabled: false });
 
     const result = writeModelConfigSelection(

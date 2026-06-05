@@ -8,16 +8,16 @@ import { requestWorkerStop } from "../lima/worker-control";
 
 test("runLiMaDoctor passes required checks for a configured reachable server", async () => {
   const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), "lima-doctor-ok-"));
-  fs.mkdirSync(path.join(projectRoot, ".lima-code"), { recursive: true });
-  fs.writeFileSync(path.join(projectRoot, ".lima-code", "audit.jsonl"), "", "utf8");
-  fs.writeFileSync(path.join(projectRoot, ".lima-code", "skill-rules.json"), JSON.stringify({ rules: [] }), "utf8");
+  fs.mkdirSync(path.join(projectRoot, ".lima"), { recursive: true });
+  fs.writeFileSync(path.join(projectRoot, ".lima", "audit.jsonl"), "", "utf8");
+  fs.writeFileSync(path.join(projectRoot, ".lima", "skill-rules.json"), JSON.stringify({ rules: [] }), "utf8");
   let fetched = 0;
 
   const report = await runLiMaDoctor({
     projectRoot,
     env: {
-      LIMA_CODE_TELEGRAM_BOT_TOKEN: "bot-token-secret",
-      LIMA_CODE_TELEGRAM_CHAT_ID: "chat-1",
+      LIMA_TELEGRAM_BOT_TOKEN: "bot-token-secret",
+      LIMA_TELEGRAM_CHAT_ID: "chat-1",
     },
     client: {
       isConfigured: () => true,

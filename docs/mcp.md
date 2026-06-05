@@ -1,10 +1,10 @@
-﻿# LiMa Code CLI MCP 配置指南
+﻿# LiMa CLI MCP 配置指南
 
-LiMa Code CLI 支持 MCP（Model Context Protocol），让 AI 助手能够连接外部工具和服务，如 GitHub、浏览器、数据库等。
+LiMa CLI 支持 MCP（Model Context Protocol），让 AI 助手能够连接外部工具和服务，如 GitHub、浏览器、数据库等。
 
 ## 概述
 
-配置 MCP 后，LiMa Code 可以：
+配置 MCP 后，LiMa 可以：
 
 - 操作 GitHub 仓库（查看 Issues、创建 PR、搜索代码等）
 - 操控浏览器（截图、点击、填表单等）
@@ -12,11 +12,11 @@ LiMa Code CLI 支持 MCP（Model Context Protocol），让 AI 助手能够连接
 - 连接数据库和 API
 - ...以及任何兼容 MCP 协议的外部服务
 
-MCP 工具在 LiMa Code 中的命名格式为 `mcp__<服务名>__<工具名>`，例如 `mcp__github__search_code`。
+MCP 工具在 LiMa 中的命名格式为 `mcp__<服务名>__<工具名>`，例如 `mcp__github__search_code`。
 
 ## 配置 MCP 服务器
 
-编辑 `~/.lima-code/settings.json`，添加 `mcpServers` 字段：
+编辑 `~/.lima/settings.json`，添加 `mcpServers` 字段：
 
 ```json
 {
@@ -43,7 +43,7 @@ MCP 工具在 LiMa Code 中的命名格式为 `mcp__<服务名>__<工具名>`，
 
 | 字段      | 类型     | 必填 | 说明                                                                                                                   |
 | --------- | -------- | ---- | ---------------------------------------------------------------------------------------------------------------------- |
-| `command` | string   | 是   | MCP 服务器的可执行文件路径或命令（如 `npx`、`node`、`python`）。当命令是 `npx` 时，LiMa Code 会自动在参数前补充 `-y`。 |
+| `command` | string   | 是   | MCP 服务器的可执行文件路径或命令（如 `npx`、`node`、`python`）。当命令是 `npx` 时，LiMa 会自动在参数前补充 `-y`。 |
 | `args`    | string[] | 否   | 传递给命令的参数列表                                                                                                   |
 | `env`     | object   | 否   | 传递给 MCP 服务器进程的环境变量（如 API Key）                                                                          |
 
@@ -51,16 +51,16 @@ MCP 工具在 LiMa Code 中的命名格式为 `mcp__<服务名>__<工具名>`，
 
 ### LiMa Server MCP 预设
 
-LiMa Code 现在提供 LiMa Server MCP 预设和专用 HTTP client，用于接入 LiMa 的 `/mcp/tools/list` 和 `/mcp/tools/call` HTTP 端点。当前阶段不替换已有 stdio MCP manager。
+LiMa 现在提供 LiMa Server MCP 预设和专用 HTTP client，用于接入 LiMa 的 `/mcp/tools/list` 和 `/mcp/tools/call` HTTP 端点。当前阶段不替换已有 stdio MCP manager。
 
 推荐使用环境变量，不要把 token 写入项目配置：
 
 ```powershell
-$env:LIMA_CODE_SERVER_URL = "https://chat.donglicao.com"
-$env:LIMA_CODE_API_KEY = "<YOUR_LIMA_API_KEY>"
+$env:LIMA_SERVER_URL = "https://chat.donglicao.com"
+$env:LIMA_API_KEY = "<YOUR_LIMA_API_KEY>"
 ```
 
-如果只设置了 OpenAI-compatible base URL，例如 `https://chat.donglicao.com/v1`，LiMa Code 会在构建 MCP 预设时去掉末尾 `/v1`，并生成：
+如果只设置了 OpenAI-compatible base URL，例如 `https://chat.donglicao.com/v1`，LiMa 会在构建 MCP 预设时去掉末尾 `/v1`，并生成：
 
 - `https://chat.donglicao.com/mcp/tools/list`
 - `https://chat.donglicao.com/mcp/tools/call`
@@ -86,7 +86,7 @@ LiMa agent task 必须在 `allowed_tools` 中显式包含 `mcp`，才允许调�
 
 ### GitHub MCP
 
-让 LiMa Code 直接操作 GitHub 仓库（搜索代码、管理 Issue/PR、读写文件等）：
+让 LiMa 直接操作 GitHub 仓库（搜索代码、管理 Issue/PR、读写文件等）：
 
 ```json
 {
@@ -106,7 +106,7 @@ LiMa agent task 必须在 `allowed_tools` 中显式包含 `mcp`，才允许调�
 
 ### 浏览器控制（Playwright）
 
-让 LiMa Code 操控浏览器进行截图、页面操作等：
+让 LiMa 操控浏览器进行截图、页面操作等：
 
 ```json
 {
@@ -121,7 +121,7 @@ LiMa agent task 必须在 `allowed_tools` 中显式包含 `mcp`，才允许调�
 
 ### 文件系统
 
-让 LiMa Code 在指定目录中读写文件：
+让 LiMa 在指定目录中读写文件：
 
 ```json
 {
@@ -152,7 +152,7 @@ LiMa agent task 必须在 `allowed_tools` 中显式包含 `mcp`，才允许调�
 
 ## 完整配置示例
 
-以下是一个配置了 GitHub 和 Playwright 两个 MCP 服务器的完整 `~/.lima-code/settings.json`：
+以下是一个配置了 GitHub 和 Playwright 两个 MCP 服务器的完整 `~/.lima/settings.json`：
 
 ```json
 {
@@ -181,12 +181,12 @@ LiMa agent task 必须在 `allowed_tools` 中显式包含 `mcp`，才允许调�
 
 ## 使用 MCP
 
-配置完成后，启动 `lima-code`，在聊天中输入 `/mcp` 即可查看所有已配置的 MCP 服务器状态以及每个服务器提供的工具列表。
+配置完成后，启动 `lima`，在聊天中输入 `/mcp` 即可查看所有已配置的 MCP 服务器状态以及每个服务器提供的工具列表。
 
 在对话中直接使用 MCP 工具名称即可调用，例如：
 
 ```
-帮我搜索 GitHub 上 lima-code 仓库的 issues
+帮我搜索 GitHub 上 lima 仓库的 issues
 ```
 
 AI 会自动调用 `mcp__github__search_issues` 工具完成操作。
@@ -212,17 +212,17 @@ MCP 工具名称由三部分组成：`mcp__<服务名>__<工具名>`
 
 1. `command` 是否已安装（如 `npx` 需要 Node.js）
 2. `env` 中的环境变量是否正确（如 `GITHUB_PERSONAL_ACCESS_TOKEN`）
-3. 运行 `lima-code` 的终端是否有网络访问权限
+3. 运行 `lima` 的终端是否有网络访问权限
 
 ### 工具不显示
 
 1. 确认 `settings.json` 中的 `mcpServers` 字段格式正确
-2. 启动 LiMa Code 后使用 `/mcp` 查看服务器状态
+2. 启动 LiMa 后使用 `/mcp` 查看服务器状态
 3. 如果服务器状态显示错误，根据错误信息排查
 
 ### Windows 用户
 
-在 Windows 上，LiMa Code CLI 会自动为 `.cmd` 命令添加 shell 支持。如果你的 MCP 命令是批处理脚本，确保文件名以 `.cmd` 结尾。
+在 Windows 上，LiMa CLI 会自动为 `.cmd` 命令添加 shell 支持。如果你的 MCP 命令是批处理脚本，确保文件名以 `.cmd` 结尾。
 
 ## 编写你自己的 MCP 服务器
 

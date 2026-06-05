@@ -2,7 +2,7 @@
 
 ## Status
 
-This document tracks the LiMa Code side of the LiMa worker integration. LiMa Code remains a local coding worker; LiMa Server remains the router, memory, policy, and task broker.
+This document tracks the LiMa side of the LiMa worker integration. LiMa remains a local coding worker; LiMa Server remains the router, memory, policy, and task broker.
 
 ## Phase 6: LiMa MCP Preset And Task Permissions
 
@@ -14,7 +14,7 @@ Expose a small, explicit LiMa MCP preset for LiMa Server endpoints and add a tas
 
 - Keep the existing stdio MCP manager unchanged in this phase.
 - Represent LiMa Server MCP as an HTTP preset first, with normalized `/mcp/tools/list` and `/mcp/tools/call` endpoints.
-- Do not store tokens in project settings; read them from `LIMA_CODE_API_KEY` or explicit runtime config.
+- Do not store tokens in project settings; read them from `LIMA_API_KEY` or explicit runtime config.
 - Require `allowed_tools` to include `mcp` before any LiMa task may call an MCP tool.
 - Defer wiring HTTP MCP transport into `McpManager` until LiMa Server's MCP response format is stable.
 
@@ -42,7 +42,7 @@ Add a LiMa-only HTTP MCP client that can call the preset endpoints without chang
 
 - Use `GET /mcp/tools/list` for tool discovery.
 - Use `POST /mcp/tools/call` with `{ name, arguments }` for tool execution.
-- Accept both native MCP-style responses and simple LiMa Server responses, then normalize them into LiMa Code's existing MCP-like shape.
+- Accept both native MCP-style responses and simple LiMa Server responses, then normalize them into LiMa's existing MCP-like shape.
 - Keep fetch injectable so tests do not need network access.
 
 ### Implementation Scope
@@ -62,11 +62,11 @@ Make the LiMa worker path usable from the CLI, not only from isolated modules.
 
 ### Decisions
 
-- `/lima task <task_id>` is handled locally by LiMa Code and is not sent to the model as a chat prompt.
+- `/lima task <task_id>` is handled locally by LiMa and is not sent to the model as a chat prompt.
 - `/lima next` claims one pending `accepted` task from LiMa Server, runs it locally, and submits the result.
-- LiMa Code fetches the task from LiMa Server, runs it through the guarded local task runner, writes a local audit entry, and submits the structured result back to LiMa Server.
+- LiMa fetches the task from LiMa Server, runs it through the guarded local task runner, writes a local audit entry, and submits the structured result back to LiMa Server.
 - `/lima review` remains local-only and uses the same guarded review path against the current git diff.
-- Local audit output is written under `.lima-code/audit.jsonl`; `.lima-code/` is ignored by Git because it may contain local settings or credentials.
+- Local audit output is written under `.lima/audit.jsonl`; `.lima/` is ignored by Git because it may contain local settings or credentials.
 - Bash timeout handling waits for process close after killing the tree on Windows so temporary workspaces are not removed while still locked.
 
 ### Evidence
@@ -74,10 +74,10 @@ Make the LiMa worker path usable from the CLI, not only from isolated modules.
 - Targeted LiMa tests: `41 passed`.
 - Tool handler regression tests: `22 passed`.
 - `npm.cmd run check`: passed.
-- Full LiMa Code test suite: `368 passed, 7 skipped`.
+- Full LiMa test suite: `368 passed, 7 skipped`.
 - Public end-to-end smoke:
   - LiMa Server created task `4d6c02b3`.
-  - LiMa Code executed `/lima task 4d6c02b3` against `https://chat.donglicao.com`.
+  - LiMa executed `/lima task 4d6c02b3` against `https://chat.donglicao.com`.
   - Worker ran read-only `review` mode over `D:\GIT\deepcode-cli`.
   - Result submitted to Server as `needs_review`.
   - Server event endpoint returned `created,result_submitted`.
@@ -86,7 +86,7 @@ Make the LiMa worker path usable from the CLI, not only from isolated modules.
 
 ### Goal
 
-Let LiMa Code behave like a worker without requiring the user to manually copy a task id.
+Let LiMa behave like a worker without requiring the user to manually copy a task id.
 
 ### Decisions
 
@@ -100,10 +100,10 @@ Let LiMa Code behave like a worker without requiring the user to manually copy a
 - Parser and runner regression tests cover `/lima next`, no-task behavior, execution, and result submission.
 - LiMa worker targeted tests: `52 passed`.
 - `npm.cmd run check`: passed.
-- Full LiMa Code test suite: `371 passed, 7 skipped`.
+- Full LiMa test suite: `371 passed, 7 skipped`.
 - Public end-to-end smoke:
   - LiMa Server created task `eb9410e1`.
-  - LiMa Code executed `/lima next` against `https://chat.donglicao.com`.
+  - LiMa executed `/lima next` against `https://chat.donglicao.com`.
   - Worker selected the pending task, ran read-only review mode, and submitted `needs_review`.
   - Server detail confirmed `hasResult=true`; events endpoint returned `created,result_submitted`.
 
@@ -111,7 +111,7 @@ Let LiMa Code behave like a worker without requiring the user to manually copy a
 
 ### Goal
 
-Allow LiMa Code to process a small batch of Server tasks without becoming an uncontrolled background daemon.
+Allow LiMa to process a small batch of Server tasks without becoming an uncontrolled background daemon.
 
 ### Decisions
 
@@ -128,7 +128,7 @@ Allow LiMa Code to process a small batch of Server tasks without becoming an unc
 - Parser/runner tests cover `--once`, bounded loop, unbounded-loop rejection, no-task behavior, max-task stopping, and abort handling.
 - LiMa worker targeted tests: `58 passed`.
 - `npm.cmd run check`: passed.
-- Full LiMa Code test suite: `377 passed, 7 skipped`.
+- Full LiMa test suite: `377 passed, 7 skipped`.
 - Public empty-repo smoke:
   - Created Server tasks `3428f2b5` and `ae549d08`.
   - Ran `/lima work --loop --max-tasks 2 --interval-ms 1` against a temporary empty directory.
@@ -140,26 +140,26 @@ Allow LiMa Code to process a small batch of Server tasks without becoming an unc
 
 ### Goal
 
-Prove LiMa Code can apply an explicit Server task patch to a real temporary git repository, run explicit tests, and submit structured evidence.
+Prove LiMa can apply an explicit Server task patch to a real temporary git repository, run explicit tests, and submit structured evidence.
 
 ### Decisions
 
 - Patch mode may run tests only when the task includes `test_commands` and `allowed_tools` includes `test`.
-- Patch mode still requires explicit `patch_files`; LiMa Code does not synthesize edits from free-form goals in this path.
+- Patch mode still requires explicit `patch_files`; LiMa does not synthesize edits from free-form goals in this path.
 - Server task payloads now preserve optional `patch_files` and `test_commands` so real fetched tasks carry the same evidence-bearing contract as local tests.
 - The public VPS smoke remains pending until the updated Server contract is deployed; do not mark it verified from local-only evidence.
 
 ### Evidence
 
 - Red local smoke first failed because patch mode submitted no `test_commands` or `test_results`.
-- Red contract tests then exposed the end-to-end gap: Server task creation and LiMa Code validation did not preserve `patch_files`.
+- Red contract tests then exposed the end-to-end gap: Server task creation and LiMa validation did not preserve `patch_files`.
 - Server focused tests: `31 passed`.
-- LiMa Code worker tests: `407 passed, 6 skipped`.
+- LiMa worker tests: `407 passed, 6 skipped`.
 - `npm.cmd run check`: passed.
 
 ### Remaining
 
 - Deploy the Server contract update to VPS.
 - Create one temporary-repo task on the live Server with `patch_files` and `test_commands`.
-- Run `/lima task <task_id>` with LiMa Code against that temporary repo.
+- Run `/lima task <task_id>` with LiMa against that temporary repo.
 - Confirm live Server evidence includes `created,result_submitted`, `changed_files=["README.md"]`, and one passing test result.

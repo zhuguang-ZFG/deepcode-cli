@@ -34,7 +34,7 @@ test("buildWelcomeTips includes built-in slash commands and loaded skills", () =
   assert.ok(labels.includes("/loaded"));
   assert.equal(labels.includes("/fresh"), false);
   assert.equal(
-    tips.some((tip) => /Send the prompt|Quit LiMa Code CLI/.test(tip.description)),
+    tips.some((tip) => /Send the prompt|Quit LiMa CLI/.test(tip.description)),
     false
   );
   assert.equal(

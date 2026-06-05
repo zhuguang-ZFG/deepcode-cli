@@ -140,7 +140,7 @@ test("WebSearch returns a configuration error when neither a script nor an LLM c
   assert.equal(result.ok, false);
   assert.equal(
     result.error,
-    "WebSearch default mode requires a valid LLM configuration in ~/.lima-code/settings.json or ./.lima-code/settings.json. Legacy .deepcode settings are still read as a fallback."
+    "WebSearch default mode requires a valid LLM configuration in ~/.lima/settings.json or ./.lima/settings.json. Legacy .deepcode settings are still read as a fallback."
   );
 });
 

@@ -764,7 +764,7 @@ ${skillMd}
       this.onAssistantMessage(
         this.buildAssistantMessage(
           sessionId,
-          "OpenAI API key not found. Please configure ~/.lima-code/settings.json or ./.lima-code/settings.json. Legacy .deepcode settings are still read as a fallback.",
+          "OpenAI API key not found. Please configure ~/.lima/settings.json or ./.lima/settings.json. Legacy .deepcode settings are still read as a fallback.",
           null
         ),
         false

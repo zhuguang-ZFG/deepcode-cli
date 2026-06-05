@@ -15,7 +15,7 @@ export type LiMaAuditEntry = {
 };
 
 export function getLiMaAuditLogPath(projectRoot: string): string {
-  return path.join(projectRoot, ".lima-code", "audit.jsonl");
+  return path.join(projectRoot, ".lima", "audit.jsonl");
 }
 
 export function appendLiMaAuditEntry(

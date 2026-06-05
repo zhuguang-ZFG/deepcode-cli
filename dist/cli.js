@@ -28637,10 +28637,10 @@ function collectPrefixedEnv(processEnv, prefix) {
   }
   return result;
 }
-function collectLiMaCodeEnv(processEnv = process.env) {
+function collectlimaEnv(processEnv = process.env) {
   return {
     ...collectPrefixedEnv(processEnv, LEGACY_DEEPCODE_ENV_PREFIX),
-    ...collectPrefixedEnv(processEnv, LIMA_CODE_ENV_PREFIX)
+    ...collectPrefixedEnv(processEnv, LIMA_ENV_PREFIX)
   };
 }
 function extractMcpEnv(env3) {
@@ -28698,7 +28698,7 @@ function mergeMcpServers(userSettings, projectSettings, userEnv, projectEnv, sys
 function resolveSettingsSources(userSettings, projectSettings, defaults2, processEnv = process.env) {
   const userEnv = normalizeEnv(userSettings?.env);
   const projectEnv = normalizeEnv(projectSettings?.env);
-  const systemEnv = collectLiMaCodeEnv(processEnv);
+  const systemEnv = collectlimaEnv(processEnv);
   const env3 = {
     ...userEnv,
     ...projectEnv,
@@ -28744,12 +28744,12 @@ function applyModelConfigSelection(settings, current, selected) {
   }
   return { settings: next, changed: true };
 }
-var LIMA_CODE_ENV_PREFIX, LEGACY_DEEPCODE_ENV_PREFIX;
+var LIMA_ENV_PREFIX, LEGACY_DEEPCODE_ENV_PREFIX;
 var init_settings = __esm({
   "src/settings.ts"() {
     "use strict";
     init_model_capabilities();
-    LIMA_CODE_ENV_PREFIX = "LIMA_CODE_";
+    LIMA_ENV_PREFIX = "LIMA_";
     LEGACY_DEEPCODE_ENV_PREFIX = "DEEPCODE_";
   }
 });
@@ -28832,13 +28832,13 @@ function resolveCurrentSettings(projectRoot2 = process.cwd()) {
   );
 }
 function getUserSettingsPath() {
-  return path2.join(os4.homedir(), ".lima-code", "settings.json");
+  return path2.join(os4.homedir(), ".lima", "settings.json");
 }
 function getLegacyUserSettingsPath() {
   return path2.join(os4.homedir(), ".deepcode", "settings.json");
 }
 function getProjectSettingsPath(projectRoot2) {
-  return path2.join(projectRoot2, ".lima-code", "settings.json");
+  return path2.join(projectRoot2, ".lima", "settings.json");
 }
 function getLegacyProjectSettingsPath(projectRoot2) {
   return path2.join(projectRoot2, ".deepcode", "settings.json");
@@ -74067,8 +74067,8 @@ var init_agent_task_client = __esm({
       apiKey;
       fetchImpl;
       constructor(config2 = {}) {
-        this.serverUrl = normalizeServerUrl(config2.serverUrl ?? process.env.LIMA_CODE_SERVER_URL ?? "");
-        this.apiKey = (config2.apiKey ?? process.env.LIMA_CODE_API_KEY ?? "").trim();
+        this.serverUrl = normalizeServerUrl(config2.serverUrl ?? process.env.LIMA_SERVER_URL ?? "");
+        this.apiKey = (config2.apiKey ?? process.env.LIMA_API_KEY ?? "").trim();
         this.fetchImpl = config2.fetch ?? fetch;
       }
       isConfigured() {
@@ -74164,10 +74164,10 @@ var init_agent_task_client = __esm({
       }
       requireConfig() {
         if (!this.serverUrl) {
-          return { ok: false, error: "LIMA_CODE_SERVER_URL or lima.serverUrl is required." };
+          return { ok: false, error: "LIMA_SERVER_URL or lima.serverUrl is required." };
         }
         if (!this.apiKey) {
-          return { ok: false, error: "LIMA_CODE_API_KEY or lima.apiKey is required." };
+          return { ok: false, error: "LIMA_API_KEY or lima.apiKey is required." };
         }
         return { ok: true };
       }
@@ -74275,7 +74275,7 @@ var init_evidence = __esm({
 import * as fs20 from "fs";
 import * as path21 from "path";
 function getLiMaAuditLogPath(projectRoot2) {
-  return path21.join(projectRoot2, ".lima-code", "audit.jsonl");
+  return path21.join(projectRoot2, ".lima", "audit.jsonl");
 }
 function appendLiMaAuditEntry(projectRoot2, task, result, now = /* @__PURE__ */ new Date()) {
   const evidence = buildLiMaEvidenceBundle(result);
@@ -74306,7 +74306,7 @@ var init_audit_log = __esm({
 import * as fs21 from "fs";
 import * as path22 from "path";
 function readRecentAuditEntries(projectRoot2, limit2 = 10) {
-  const file2 = path22.join(projectRoot2, ".lima-code", "audit.jsonl");
+  const file2 = path22.join(projectRoot2, ".lima", "audit.jsonl");
   if (!fs21.existsSync(file2)) {
     return [];
   }
@@ -74430,7 +74430,7 @@ function formatLiMaCommandHelp() {
     "/lima audit [--last <n>]",
     "/lima daemon status",
     "/lima daemon stop",
-    "/lima daemon start [--max-minutes <n>] [--interval-ms <ms>] [--backoff-ms <ms>]  (requires LIMA_CODE_WORKER_DAEMON=1)",
+    "/lima daemon start [--max-minutes <n>] [--interval-ms <ms>] [--backoff-ms <ms>]  (requires LIMA_WORKER_DAEMON=1)",
     "/lima work --once",
     "/lima work --loop --max-tasks <n> [--max-minutes <n>] [--interval-ms <ms>] [--backoff-ms <ms>]",
     "/lima task <task_id>",
@@ -74561,10 +74561,10 @@ var init_commands = __esm({
 
 // src/lima/telegram-notifier.ts
 function readLiMaTelegramConfig(env3 = process.env) {
-  const botToken = (env3.LIMA_CODE_TELEGRAM_BOT_TOKEN ?? "").trim();
-  const chatId = (env3.LIMA_CODE_TELEGRAM_CHAT_ID ?? "").trim();
-  const proxyUrl = (env3.LIMA_CODE_TELEGRAM_PROXY ?? "").trim();
-  const b2bRaw = (env3.LIMA_CODE_TELEGRAM_B2B ?? "").trim().toLowerCase();
+  const botToken = (env3.LIMA_TELEGRAM_BOT_TOKEN ?? "").trim();
+  const chatId = (env3.LIMA_TELEGRAM_CHAT_ID ?? "").trim();
+  const proxyUrl = (env3.LIMA_TELEGRAM_PROXY ?? "").trim();
+  const b2bRaw = (env3.LIMA_TELEGRAM_B2B ?? "").trim().toLowerCase();
   const serverBotUsername = (env3.LIMA_SERVER_BOT_USERNAME ?? "").trim().replace(/^@/, "");
   const b2bEnabled = b2bRaw === "1" || b2bRaw === "true" || b2bRaw === "yes" || b2bRaw === "on";
   const configured = Boolean(botToken && (chatId || b2bEnabled && serverBotUsername));
@@ -74585,7 +74585,7 @@ function redactTelegramText(value) {
   return text;
 }
 function formatLiMaTelegramEvent(event) {
-  const lines = [`LiMa Code ${event.type}`];
+  const lines = [`LiMa ${event.type}`];
   if (event.taskId) {
     lines.push(`\u4EFB\u52A1: ${event.taskId}`);
   }
@@ -74682,7 +74682,7 @@ function readWorkerStop(projectRoot2) {
   }
 }
 function stopMarkerPath(projectRoot2) {
-  return path23.join(projectRoot2, ".lima-code", "worker.stop.json");
+  return path23.join(projectRoot2, ".lima", "worker.stop.json");
 }
 var init_worker_control = __esm({
   "src/lima/worker-control.ts"() {
@@ -74700,7 +74700,7 @@ async function runLiMaDoctor(options2) {
   checks.push({
     name: "server_config",
     status: configured ? "pass" : "fail",
-    detail: configured ? "LiMa Server URL \u548C API key \u5DF2\u914D\u7F6E\u3002" : "\u8BF7\u8BBE\u7F6E LIMA_CODE_SERVER_URL \u548C LIMA_CODE_API_KEY\u3002"
+    detail: configured ? "LiMa Server URL \u548C API key \u5DF2\u914D\u7F6E\u3002" : "\u8BF7\u8BBE\u7F6E LIMA_SERVER_URL \u548C LIMA_API_KEY\u3002"
   });
   if (configured) {
     checks.push(await checkServerReachable(options2.client));
@@ -74786,12 +74786,12 @@ function checkTelegram(env3) {
   return config2.configured ? { name: "telegram_outbound", status: "pass", detail: "Telegram \u51FA\u7AD9\u901A\u77E5\u914D\u7F6E\u5DF2\u5B58\u5728\u3002" } : { name: "telegram_outbound", status: "warn", detail: "Telegram \u51FA\u7AD9\u901A\u77E5\u672A\u914D\u7F6E\uFF08\u53EF\u9009\uFF09\u3002" };
 }
 function checkSkillRules(projectRoot2) {
-  const file2 = path24.join(projectRoot2, ".lima-code", "skill-rules.json");
-  return fs23.existsSync(file2) ? { name: "project_skill_rules", status: "pass", detail: ".lima-code/skill-rules.json \u5DF2\u5B58\u5728\u3002" } : { name: "project_skill_rules", status: "warn", detail: "\u672A\u627E\u5230\u9879\u76EE skill rules \u6587\u4EF6\u3002" };
+  const file2 = path24.join(projectRoot2, ".lima", "skill-rules.json");
+  return fs23.existsSync(file2) ? { name: "project_skill_rules", status: "pass", detail: ".lima/skill-rules.json \u5DF2\u5B58\u5728\u3002" } : { name: "project_skill_rules", status: "warn", detail: "\u672A\u627E\u5230\u9879\u76EE skill rules \u6587\u4EF6\u3002" };
 }
 function checkAuditLog(projectRoot2) {
-  const file2 = path24.join(projectRoot2, ".lima-code", "audit.jsonl");
-  return fs23.existsSync(file2) ? { name: "audit_log", status: "pass", detail: ".lima-code/audit.jsonl \u5DF2\u5B58\u5728\u3002" } : { name: "audit_log", status: "warn", detail: "\u8FD8\u6CA1\u6709\u672C\u5730 LiMa \u5BA1\u8BA1\u65E5\u5FD7\u3002" };
+  const file2 = path24.join(projectRoot2, ".lima", "audit.jsonl");
+  return fs23.existsSync(file2) ? { name: "audit_log", status: "pass", detail: ".lima/audit.jsonl \u5DF2\u5B58\u5728\u3002" } : { name: "audit_log", status: "warn", detail: "\u8FD8\u6CA1\u6709\u672C\u5730 LiMa \u5BA1\u8BA1\u65E5\u5FD7\u3002" };
 }
 var init_doctor = __esm({
   "src/lima/doctor.ts"() {
@@ -74827,7 +74827,7 @@ function shouldQuarantineTask(projectRoot2, taskId, threshold = 3) {
   };
 }
 function quarantinePath(projectRoot2) {
-  return path25.join(projectRoot2, ".lima-code", "quarantine.json");
+  return path25.join(projectRoot2, ".lima", "quarantine.json");
 }
 function readState(projectRoot2) {
   const file2 = quarantinePath(projectRoot2);
@@ -75024,7 +75024,7 @@ function writeLiMaTaskStopHook(projectRoot2, result) {
   }
 }
 function taskDirectory(projectRoot2, taskId) {
-  return path26.join(projectRoot2, ".lima-code", "dev", "active", sanitizeTaskId(taskId));
+  return path26.join(projectRoot2, ".lima", "dev", "active", sanitizeTaskId(taskId));
 }
 function sanitizeTaskId(taskId) {
   const safe = taskId.replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, "");
@@ -75132,7 +75132,7 @@ function evaluateLiMaSkillActivationForProject(task, projectRoot2) {
   return evaluateLiMaSkillActivation(task, [...DEFAULT_LIMA_SKILL_RULES, ...loadProjectSkillRules(projectRoot2)]);
 }
 function loadProjectSkillRules(projectRoot2) {
-  const configPath = path27.join(projectRoot2, ".lima-code", "skill-rules.json");
+  const configPath = path27.join(projectRoot2, ".lima", "skill-rules.json");
   try {
     const raw = JSON.parse(fs26.readFileSync(configPath, "utf8"));
     if (!Array.isArray(raw.rules)) {
@@ -75977,7 +75977,7 @@ function clearCheckpoint(projectRoot2) {
 }
 function snapshotFiles(projectRoot2, files) {
   const taskId = `snap-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  const snapshotDir = path32.join(projectRoot2, ".lima-code", "snapshots", taskId);
+  const snapshotDir = path32.join(projectRoot2, ".lima", "snapshots", taskId);
   fs30.mkdirSync(snapshotDir, { recursive: true });
   for (const relPath of files) {
     const absPath = path32.resolve(projectRoot2, relPath);
@@ -76016,7 +76016,7 @@ function isStale(checkpoint, maxAgeMs = DEFAULT_STALE_MS) {
   return Date.now() - started > maxAgeMs;
 }
 function checkpointPath(projectRoot2) {
-  return path32.join(projectRoot2, ".lima-code", "checkpoint.json");
+  return path32.join(projectRoot2, ".lima", "checkpoint.json");
 }
 function readStore(projectRoot2) {
   const file2 = checkpointPath(projectRoot2);
@@ -76378,7 +76378,7 @@ var init_probe = __esm({
       "venv",
       "__pycache__",
       ".lima",
-      ".lima-code",
+      ".lima",
       "dist",
       "build",
       ".next",
@@ -76659,13 +76659,13 @@ async function executeLiMaCommand(input, options2) {
   const notify = options2.notify ?? sendLiMaTelegramEvent;
   const lifecycleHooks = resolveLifecycleHooks(options2);
   if (parsed.command.kind === "connect") {
-    return client.isConfigured() ? { ok: true, message: "LiMa Server \u8FDE\u63A5\u5DF2\u914D\u7F6E\u3002" } : { ok: false, message: "LiMa Server \u5C1A\u672A\u914D\u7F6E\u3002\u8BF7\u8BBE\u7F6E LIMA_CODE_SERVER_URL \u548C LIMA_CODE_API_KEY\u3002" };
+    return client.isConfigured() ? { ok: true, message: "LiMa Server \u8FDE\u63A5\u5DF2\u914D\u7F6E\u3002" } : { ok: false, message: "LiMa Server \u5C1A\u672A\u914D\u7F6E\u3002\u8BF7\u8BBE\u7F6E LIMA_SERVER_URL \u548C LIMA_API_KEY\u3002" };
   }
   if (parsed.command.kind === "status") {
     return {
       ok: true,
       message: [
-        `LiMa Code \u9879\u76EE: ${options2.projectRoot}`,
+        `LiMa \u9879\u76EE: ${options2.projectRoot}`,
         `LiMa Server \u914D\u7F6E: ${client.isConfigured() ? "\u5DF2\u914D\u7F6E" : "\u672A\u914D\u7F6E"}`
       ].join("\n")
     };
@@ -76727,10 +76727,10 @@ async function executeLiMaCommand(input, options2) {
       return { ok: true, message: `\u5DF2\u8BF7\u6C42\u505C\u6B62 LiMa worker: ${marker}` };
     }
     if (parsed.command.action === "start") {
-      if (process.env.LIMA_CODE_WORKER_DAEMON !== "1") {
+      if (process.env.LIMA_WORKER_DAEMON !== "1") {
         return {
           ok: false,
-          message: "\u5E38\u9A7B daemon \u53D7\u5F00\u5173\u4FDD\u62A4\u3002\u7ECF\u64CD\u4F5C\u8005\u6279\u51C6\u540E\u8BBE\u7F6E LIMA_CODE_WORKER_DAEMON=1\uFF0C\u518D\u91CD\u8BD5 /lima daemon start\u3002"
+          message: "\u5E38\u9A7B daemon \u53D7\u5F00\u5173\u4FDD\u62A4\u3002\u7ECF\u64CD\u4F5C\u8005\u6279\u51C6\u540E\u8BBE\u7F6E LIMA_WORKER_DAEMON=1\uFF0C\u518D\u91CD\u8BD5 /lima daemon start\u3002"
         };
       }
       return runWorkLoop({
@@ -76803,7 +76803,7 @@ function buildLocalReviewTask(projectRoot2) {
 }
 function formatLiMaStartWorkbench(projectRoot2, serverConfigured) {
   return [
-    "LiMa Code \u5DE5\u4F5C\u53F0",
+    "LiMa \u5DE5\u4F5C\u53F0",
     `\u9879\u76EE: ${projectRoot2}`,
     `LiMa Server \u914D\u7F6E: ${serverConfigured ? "\u5DF2\u914D\u7F6E" : "\u672A\u914D\u7F6E"}`,
     "",
@@ -76821,7 +76821,7 @@ function formatLiMaStartWorkbench(projectRoot2, serverConfigured) {
 }
 function formatVibeWorkflowHelp() {
   return [
-    "LiMa Code vibe coding workflow:",
+    "LiMa vibe coding workflow:",
     "1. /lima doctor  - confirm server, keys, worker, and audit state",
     "2. /lima plan    - turn the idea into an implementation plan",
     "3. /lima test    - run the project test command and inspect failures",
@@ -76836,7 +76836,7 @@ function buildLocalPlanTask(projectRoot2) {
     task_id: "local-plan",
     repo: projectRoot2,
     branch: "local",
-    goal: "Plan the next LiMa Code work slice",
+    goal: "Plan the next LiMa work slice",
     constraints: [
       "Keep the plan scoped to the current repository.",
       "Prefer small, testable changes with explicit verification commands."
@@ -77206,7 +77206,7 @@ async function runDaemon(options2) {
     apiKey: options2.apiKey
   });
   if (!client.isConfigured()) {
-    console.error("[daemon] LiMa Server not configured. Set LIMA_CODE_SERVER_URL and LIMA_CODE_API_KEY.");
+    console.error("[daemon] LiMa Server not configured. Set LIMA_SERVER_URL and LIMA_API_KEY.");
     process.exit(1);
   }
   console.log(`[daemon] Starting. Polling every ${POLL_INTERVAL_MS / 1e3}s...`);
@@ -77278,8 +77278,8 @@ __export(headless_exports, {
 });
 function createHeadlessTelemetry() {
   return {
-    timeoutMs: readPositiveIntEnv("LIMA_CODE_HEADLESS_TIMEOUT_MS", DEFAULT_MODEL_TIMEOUT_MS),
-    maxRetries: readPositiveIntEnv("LIMA_CODE_HEADLESS_RETRIES", DEFAULT_MODEL_RETRIES),
+    timeoutMs: readPositiveIntEnv("LIMA_HEADLESS_TIMEOUT_MS", DEFAULT_MODEL_TIMEOUT_MS),
+    maxRetries: readPositiveIntEnv("LIMA_HEADLESS_RETRIES", DEFAULT_MODEL_RETRIES),
     retryCount: 0,
     modelCalls: [],
     toolCapability: {
@@ -87026,7 +87026,7 @@ function findGitBashPath() {
     return bashPath;
   }
   throw new Error(
-    "LiMa Code on Windows requires Git Bash. Install Git for Windows, or ensure Git's bash.exe is available in PATH."
+    "LiMa on Windows requires Git Bash. Install Git for Windows, or ensure Git's bash.exe is available in PATH."
   );
 }
 function resolveWindowsGitBashPath(lookup) {
@@ -95445,7 +95445,7 @@ var BUILTIN_SLASH_COMMANDS = [
     kind: "exit",
     name: "exit",
     label: "/exit",
-    description: "\u9000\u51FA LiMa Code"
+    description: "\u9000\u51FA LiMa"
   }
 ];
 function buildSlashCommands(skills) {
@@ -98372,7 +98372,7 @@ var AsciiLogo = [
 ].join("\n");
 var BrandInfo = [
   "",
-  "  LiMa Code \u2014 \u6DF1\u5733\u5E02\u52A8\u529B\u5DE2\u79D1\u6280\u6709\u9650\u516C\u53F8\u51FA\u54C1",
+  "  LiMa \u2014 \u6DF1\u5733\u5E02\u52A8\u529B\u5DE2\u79D1\u6280\u6709\u9650\u516C\u53F8\u51FA\u54C1",
   "  \u52A8\u529B\u5DE2\u79D1\u6280\uFF08\u6DF1\u5733\uFF09",
   "",
   "  \u7279\u70B9\uFF1A",
@@ -98398,7 +98398,7 @@ var SHORTCUT_TIPS = [
   { label: "Ctrl+V", description: "\u4ECE\u526A\u8D34\u677F\u7C98\u8D34\u56FE\u7247" },
   { label: "Esc", description: "\u4E2D\u65AD\u5F53\u524D\u6A21\u578B\u56DE\u5408" },
   { label: "/", description: "\u6253\u5F00\u6280\u80FD\u548C\u547D\u4EE4\u83DC\u5355" },
-  { label: "Ctrl+D \u4E24\u6B21", description: "\u9000\u51FA LiMa Code" }
+  { label: "Ctrl+D \u4E24\u6B21", description: "\u9000\u51FA LiMa" }
 ];
 function WelcomeScreen({ projectRoot: projectRoot2, settings, skills, width }) {
   const { version: version2 } = useAppContext();
@@ -98427,7 +98427,7 @@ function WelcomeScreen({ projectRoot: projectRoot2, settings, skills, width }) {
             /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)(Box_default, { flexGrow: 1, marginBottom: compact ? 1 : 0, children: [
               /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)(Text, { color: "#229ac3e6", children: [
                 ">",
-                "_ LiMa Code "
+                "_ LiMa "
               ] }),
               /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)(Text, { color: "gray", children: [
                 " (v",
@@ -100617,7 +100617,7 @@ Here's an example of how your output should be structured:
    [Optional Next step to take]
 
 </summary>`;
-var SYSTEM_PROMPT_BASE = `\u4F60\u662F\u540D\u53EB LiMa Code \u7684\u4EA4\u4E92\u5F0F CLI \u5DE5\u5177\uFF0C\u5E2E\u52A9\u7528\u6237\u5B8C\u6210\u8F6F\u4EF6\u5DE5\u7A0B\u4EFB\u52A1\u3002\u8BF7\u9075\u5FAA\u4E0B\u65B9\u6307\u4EE4\uFF0C\u5E76\u4F7F\u7528\u53EF\u7528\u5DE5\u5177\u534F\u52A9\u7528\u6237\u3002
+var SYSTEM_PROMPT_BASE = `\u4F60\u662F\u540D\u53EB LiMa \u7684\u4EA4\u4E92\u5F0F CLI \u5DE5\u5177\uFF0C\u5E2E\u52A9\u7528\u6237\u5B8C\u6210\u8F6F\u4EF6\u5DE5\u7A0B\u4EFB\u52A1\u3002\u8BF7\u9075\u5FAA\u4E0B\u65B9\u6307\u4EE4\uFF0C\u5E76\u4F7F\u7528\u53EF\u7528\u5DE5\u5177\u534F\u52A9\u7528\u6237\u3002
 
 \u91CD\u8981\uFF1A\u4E25\u7981\u7F16\u9020\u4EFB\u4F55\u975E\u7F16\u7A0B\u76F8\u5173\u7684 URL\u3002\u5BF9\u4E8E\u7F16\u7A0B\u94FE\u63A5\uFF0C\u4EC5\u9650\u4F7F\u7528\uFF1A1) \u7528\u6237\u63D0\u4F9B\u7684\u4E0A\u4E0B\u6587\uFF1B2) \u4F60\u786E\u5B9A\u7684\u5B98\u65B9\u6587\u6863\u4E3B\u57DF\u540D\u3002\u5728\u8F93\u51FA\u524D\uFF0C\u5FC5\u987B\u81EA\u67E5\u8BE5\u94FE\u63A5\u662F\u5426\u5B58\u5728\u4E8E\u4F60\u7684\u4E0A\u4E0B\u6587\u8BB0\u5FC6\u4E2D\uFF1B\u82E5\u4E0D\u5B58\u5728\uFF0C\u8BF7\u660E\u786E\u8BF4\u660E\u65E0\u6CD5\u63D0\u4F9B\u3002
 
@@ -102996,7 +102996,7 @@ async function handleWebSearchTool(args2, context) {
     return {
       ok: false,
       name: "WebSearch",
-      error: "WebSearch default mode requires a valid LLM configuration in ~/.lima-code/settings.json or ./.lima-code/settings.json. Legacy .deepcode settings are still read as a fallback."
+      error: "WebSearch default mode requires a valid LLM configuration in ~/.lima/settings.json or ./.lima/settings.json. Legacy .deepcode settings are still read as a fallback."
     };
   }
   return executeDefaultWebSearch(query, llmContext, context);
@@ -103643,7 +103643,7 @@ var McpClient = class {
         {
           protocolVersion: "2025-03-26",
           capabilities: {},
-          clientInfo: { name: "lima-code", version: "0.1.0" }
+          clientInfo: { name: "lima", version: "0.1.0" }
         },
         timeoutMs
       ).then((result) => {
@@ -103845,7 +103845,7 @@ function resolveWindowsCommand(command) {
 }
 
 // src/mcp/mcp-manager.ts
-var configuredMcpStartupTimeout = process.env.LIMA_CODE_MCP_TIMEOUT ?? process.env.DEEPCODE_MCP_TIMEOUT;
+var configuredMcpStartupTimeout = process.env.LIMA_MCP_TIMEOUT ?? process.env.DEEPCODE_MCP_TIMEOUT;
 var MCP_STARTUP_TIMEOUT_MS = configuredMcpStartupTimeout ? parseInt(configuredMcpStartupTimeout, 10) : 3e4;
 var MCP_CALL_TOOL_TIMEOUT_MS = 6e4;
 var McpManager = class {
@@ -104202,8 +104202,8 @@ import * as childProcess from "child_process";
 import * as crypto2 from "crypto";
 import * as fs14 from "fs";
 import * as path14 from "path";
-var FILE_HISTORY_AUTHOR_NAME = "LiMa Code Checkpoint";
-var FILE_HISTORY_AUTHOR_EMAIL = "lima-code-checkpoint@localhost";
+var FILE_HISTORY_AUTHOR_NAME = "LiMa Checkpoint";
+var FILE_HISTORY_AUTHOR_EMAIL = "lima-checkpoint@localhost";
 var MANIFEST_PATH = ".deepcode-file-history.json";
 var GitFileHistory = class {
   constructor(_projectRoot, gitDir) {
@@ -104470,7 +104470,7 @@ var DEFAULT_MAX_MODEL_ITERATIONS = 20;
 var DEFAULT_LIMA_ROUTER_REQUEST_TIMEOUT_MS = 9e4;
 var DEFAULT_LIMA_ROUTER_MAX_RETRIES = 3;
 var LIMA_ROUTER_PROJECT_INSTRUCTION_MIN_CHARS = 3e3;
-var LIMA_ROUTER_SAFE_SYSTEM_PROMPT = `\u4F60\u662F LiMa Code\uFF0C\u4E00\u4E2A\u4EA4\u4E92\u5F0F\u7F16\u7801 CLI\u3002
+var LIMA_ROUTER_SAFE_SYSTEM_PROMPT = `\u4F60\u662F LiMa\uFF0C\u4E00\u4E2A\u4EA4\u4E92\u5F0F\u7F16\u7801 CLI\u3002
 
 \u5E2E\u52A9\u7528\u6237\u5728\u5F53\u524D\u9879\u76EE\u4E2D\u5B8C\u6210\u8F6F\u4EF6\u5DE5\u7A0B\u4EFB\u52A1\u3002
 \u9700\u8981\u672C\u5730\u68C0\u67E5\u6216\u7F16\u8F91\u65F6\uFF0C\u4F7F\u7528\u63D0\u4F9B\u7684\u5DE5\u5177 schema\u3002
@@ -104490,7 +104490,7 @@ var LIMA_ROUTER_PROJECT_INSTRUCTION_SUMMARY = `\u9879\u76EE\u6307\u4EE4\u4F4D\u4
 - \u4F18\u5148\u6CBF\u7528\u9879\u76EE\u65E2\u6709\u6A21\u5F0F\u548C\u805A\u7126\u7F16\u8F91\uFF0C\u907F\u514D\u5BBD\u6CDB\u91CD\u6784\u3002
 - \u58F0\u79F0\u5B8C\u6210\u524D\u5FC5\u987B\u8FD0\u884C\u76F8\u5173\u672C\u5730\u9A8C\u8BC1\u3002
 - \u4E0D\u8981\u66B4\u9732\u654F\u611F\u914D\u7F6E\u503C\uFF0C\u4E5F\u4E0D\u8981\u63D0\u4EA4\u672C\u5730\u8FD0\u884C\u6570\u636E\u3001\u7F13\u5B58\u3001\u751F\u6210\u53D1\u5E03\u4EA7\u7269\u6216\u8C03\u8BD5\u65E5\u5FD7\u3002
-- LiMa Code \u76F8\u5173\u5DE5\u4F5C\u5C3D\u91CF\u9A8C\u8BC1\u771F\u5B9E CLI/TUI \u8DEF\u5F84\uFF0C\u5E76\u62A5\u544A\u660E\u786E\u8BC1\u636E\u3002
+- LiMa \u76F8\u5173\u5DE5\u4F5C\u5C3D\u91CF\u9A8C\u8BC1\u771F\u5B9E CLI/TUI \u8DEF\u5F84\uFF0C\u5E76\u62A5\u544A\u660E\u786E\u8BC1\u636E\u3002
 - \u9700\u8981\u9879\u76EE\u89C4\u5219\u539F\u6587\u65F6\uFF0C\u53EA\u8BFB\u53D6 AGENTS.md \u4E2D\u76F8\u5173\u7684\u5C0F\u6BB5\u843D\uFF0C\u4E0D\u8981\u628A\u6574\u4EFD\u6587\u4EF6\u585E\u8FDB\u4E0A\u4E0B\u6587\u3002`;
 var EMPTY_ASSISTANT_RESPONSE_MESSAGE = "LiMa Server \u8FD4\u56DE\u7A7A\u54CD\u5E94\u3002\u8BF7\u91CD\u8BD5\u6216\u8FD0\u884C /lima doctor\uFF1B\u8FD9\u901A\u5E38\u8868\u793A\u6240\u9009\u540E\u7AEF\u8D85\u65F6\u6216\u6CA1\u6709\u4EA7\u51FA\u5185\u5BB9\u3002";
 
@@ -104577,10 +104577,10 @@ function readPositiveIntegerEnv(name, defaultValue2) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : defaultValue2;
 }
 function getLiMaRouterRequestTimeoutMs() {
-  return readPositiveIntegerEnv("LIMA_CODE_TUI_TIMEOUT_MS", DEFAULT_LIMA_ROUTER_REQUEST_TIMEOUT_MS);
+  return readPositiveIntegerEnv("LIMA_TUI_TIMEOUT_MS", DEFAULT_LIMA_ROUTER_REQUEST_TIMEOUT_MS);
 }
 function getLiMaRouterMaxRetries() {
-  return Math.min(5, readPositiveIntegerEnv("LIMA_CODE_TUI_MAX_RETRIES", DEFAULT_LIMA_ROUTER_MAX_RETRIES));
+  return Math.min(5, readPositiveIntegerEnv("LIMA_TUI_MAX_RETRIES", DEFAULT_LIMA_ROUTER_MAX_RETRIES));
 }
 function getCompactPromptTokenThreshold(model) {
   return DEEPSEEK_V4_MODELS.has(model) ? DEEPSEEK_V4_COMPACT_PROMPT_TOKEN_THRESHOLD : DEFAULT_COMPACT_PROMPT_TOKEN_THRESHOLD;
@@ -104964,7 +104964,7 @@ function logOpenAIChatCompletionDebug(entry) {
   }
 }
 function getDebugLogPath() {
-  return path18.join(getHomeDirectory(), ".lima-code", "logs", DEBUG_LOG_FILE);
+  return path18.join(getHomeDirectory(), ".lima", "logs", DEBUG_LOG_FILE);
 }
 function normalizeDebugError(error51) {
   if (error51 instanceof Error) {
@@ -105007,7 +105007,7 @@ function toSerializable(value) {
   return walk(value);
 }
 function getHomeDirectory() {
-  const configured = process.env.LIMA_CODE_HOME?.trim();
+  const configured = process.env.LIMA_HOME?.trim();
   if (configured) {
     return configured;
   }
@@ -105081,7 +105081,7 @@ function buildLiMaRouterBlockedFallbackRequest(request) {
     messages: [
       {
         role: "system",
-        content: "\u4F60\u662F LiMa Code\u3002\u4E0A\u4E00\u6B21\u5E26\u5DE5\u5177\u8BF7\u6C42\u88AB\u4E0A\u6E38\u8DEF\u7531\u62E6\u622A\u3002\u8BF7\u7ED9\u51FA\u4E0D\u4F7F\u7528\u5DE5\u5177\u7684\u7B80\u6D01\u515C\u5E95\u56DE\u7B54\uFF0C\u8BF4\u660E\u88AB\u62E6\u622A\u7684\u5C42\u7EA7\uFF0C\u4E0D\u8981\u5047\u88C5\u672C\u5730\u68C0\u67E5\u5DF2\u7ECF\u6210\u529F\u3002"
+        content: "\u4F60\u662F LiMa\u3002\u4E0A\u4E00\u6B21\u5E26\u5DE5\u5177\u8BF7\u6C42\u88AB\u4E0A\u6E38\u8DEF\u7531\u62E6\u622A\u3002\u8BF7\u7ED9\u51FA\u4E0D\u4F7F\u7528\u5DE5\u5177\u7684\u7B80\u6D01\u515C\u5E95\u56DE\u7B54\uFF0C\u8BF4\u660E\u88AB\u62E6\u622A\u7684\u5C42\u7EA7\uFF0C\u4E0D\u8981\u5047\u88C5\u672C\u5730\u68C0\u67E5\u5DF2\u7ECF\u6210\u529F\u3002"
       },
       {
         role: "user",
@@ -105610,7 +105610,7 @@ function getRepeatedToolCallLoopMessage(messages, toolCalls) {
       continue;
     }
     if ((previousCounts.get(signature) ?? 0) >= 2) {
-      return `The model repeated the same tool call several times, so LiMa Code stopped the loop before running it again: ${formatToolCallSignatureForDisplay(signature)}. Refine the prompt or use /continue if you want another pass.`;
+      return `The model repeated the same tool call several times, so LiMa stopped the loop before running it again: ${formatToolCallSignatureForDisplay(signature)}. Refine the prompt or use /continue if you want another pass.`;
     }
   }
   return null;
@@ -106371,7 +106371,7 @@ ${skillMd}
       this.onAssistantMessage(
         this.buildAssistantMessage(
           sessionId,
-          "OpenAI API key not found. Please configure ~/.lima-code/settings.json or ./.lima-code/settings.json. Legacy .deepcode settings are still read as a fallback.",
+          "OpenAI API key not found. Please configure ~/.lima/settings.json or ./.lima/settings.json. Legacy .deepcode settings are still read as a fallback.",
           null
         ),
         false
@@ -108558,7 +108558,7 @@ function UpdatePrompt({ currentVersion, latestVersion, installCommand, onSelect 
   });
   return /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)(Box_default, { flexDirection: "column", marginY: 1, children: [
     /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)(Text, { bold: true, children: [
-      "LiMa Code latest version has been released: ",
+      "LiMa latest version has been released: ",
       currentVersion,
       " -> ",
       latestVersion
@@ -108608,7 +108608,7 @@ async function promptForPendingUpdate(packageInfo3) {
       writeUpdateState({ ...state, pending: null });
       process.stdout.write(
         `
-${source_default.red("LiMa Code has been updated. Please restart the CLI to use the new version.")}
+${source_default.red("LiMa has been updated. Please restart the CLI to use the new version.")}
 
 `
       );
@@ -108831,22 +108831,22 @@ function parseVersion(value) {
 // src/cliHelp.ts
 function buildCliHelpText() {
   return [
-    "lima-code - LiMa Code \u547D\u4EE4\u884C\u52A9\u624B",
+    "lima - LiMa \u547D\u4EE4\u884C\u52A9\u624B",
     "",
     "\u7528\u6CD5\uFF1A",
-    "  lima-code                             \u5728\u5F53\u524D\u76EE\u5F55\u542F\u52A8\u4EA4\u4E92\u5F0F TUI",
-    "  lima-code -p <prompt>                 \u5E26\u9884\u586B\u63D0\u793A\u8BCD\u542F\u52A8",
-    "  lima-code --prompt <prompt>           \u540C -p",
-    "  lima-code --headless -p <prompt>      \u65E0 TUI \u6267\u884C\u4E00\u6B21\u63D0\u793A\u8BCD",
-    "  lima-code --headless -p <p> --json    \u65E0 TUI \u6267\u884C\u5E76\u8F93\u51FA JSON",
-    "  lima-code --headless                  \u65E0 TUI \u4EA4\u4E92\u6A21\u5F0F\uFF08\u9010\u884C\u8BFB\u53D6 stdin\uFF09",
-    "  lima-code --daemon                    daemon \u6A21\u5F0F\uFF1A\u8F6E\u8BE2 LiMa Server \u4EFB\u52A1",
-    "  lima-code --version                   \u6253\u5370\u7248\u672C\u53F7",
-    "  lima-code --help                      \u663E\u793A\u5E2E\u52A9",
+    "  lima                             \u5728\u5F53\u524D\u76EE\u5F55\u542F\u52A8\u4EA4\u4E92\u5F0F TUI",
+    "  lima -p <prompt>                 \u5E26\u9884\u586B\u63D0\u793A\u8BCD\u542F\u52A8",
+    "  lima --prompt <prompt>           \u540C -p",
+    "  lima --headless -p <prompt>      \u65E0 TUI \u6267\u884C\u4E00\u6B21\u63D0\u793A\u8BCD",
+    "  lima --headless -p <p> --json    \u65E0 TUI \u6267\u884C\u5E76\u8F93\u51FA JSON",
+    "  lima --headless                  \u65E0 TUI \u4EA4\u4E92\u6A21\u5F0F\uFF08\u9010\u884C\u8BFB\u53D6 stdin\uFF09",
+    "  lima --daemon                    daemon \u6A21\u5F0F\uFF1A\u8F6E\u8BE2 LiMa Server \u4EFB\u52A1",
+    "  lima --version                   \u6253\u5370\u7248\u672C\u53F7",
+    "  lima --help                      \u663E\u793A\u5E2E\u52A9",
     "",
     "\u914D\u7F6E\uFF1A",
-    "  ~/.lima-code/settings.json   \u7528\u6237\u7EA7 API key\u3001\u6A21\u578B\u3001base URL",
-    "  ./.lima-code/settings.json   \u9879\u76EE\u7EA7\u8BBE\u7F6E",
+    "  ~/.lima/settings.json   \u7528\u6237\u7EA7 API key\u3001\u6A21\u578B\u3001base URL",
+    "  ./.lima/settings.json   \u9879\u76EE\u7EA7\u8BBE\u7F6E",
     "  ~/.deepcode/settings.json    \u65E7\u7248\u517C\u5BB9\u914D\u7F6E\uFF08\u5DF2\u5E9F\u5F03\uFF09",
     "  ./.deepcode/settings.json    \u65E7\u7248\u517C\u5BB9\u914D\u7F6E\uFF08\u5DF2\u5E9F\u5F03\uFF09",
     "",
@@ -108949,7 +108949,7 @@ if (headless) {
   } else {
     const readline = await import("readline");
     const rl = readline.createInterface({ input: process.stdin });
-    process.stderr.write("LiMa Code\uFF08headless\uFF09\u2014 \u8F93\u5165\u63D0\u793A\u8BCD\u540E\u6309 Enter\uFF1A\n");
+    process.stderr.write("LiMa\uFF08headless\uFF09\u2014 \u8F93\u5165\u63D0\u793A\u8BCD\u540E\u6309 Enter\uFF1A\n");
     for await (const line of rl) {
       const trimmed = line.trim();
       if (!trimmed || trimmed === "/exit") break;
@@ -108959,7 +108959,7 @@ if (headless) {
   }
 }
 if (!headless && !process.stdin.isTTY && !process.env.LIMA_FORCE_TTY) {
-  process.stderr.write("lima-code \u9700\u8981\u4EA4\u4E92\u5F0F\u7EC8\u7AEF\uFF08TTY\uFF09\u3002\u8BF7\u5728\u771F\u5B9E\u7EC8\u7AEF\u4F1A\u8BDD\u4E2D\u91CD\u65B0\u8FD0\u884C\u3002\n");
+  process.stderr.write("lima \u9700\u8981\u4EA4\u4E92\u5F0F\u7EC8\u7AEF\uFF08TTY\uFF09\u3002\u8BF7\u5728\u771F\u5B9E\u7EC8\u7AEF\u4F1A\u8BDD\u4E2D\u91CD\u65B0\u8FD0\u884C\u3002\n");
   process.exit(1);
 }
 if (!headless) {
@@ -109008,7 +109008,7 @@ function configureWindowsShell() {
     setShellIfWindows();
   } catch (error51) {
     const message = error51 instanceof Error ? error51.message : String(error51);
-    process.stderr.write(`lima-code: ${message}
+    process.stderr.write(`lima: ${message}
 `);
     process.exit(1);
   }
@@ -109018,11 +109018,11 @@ function readPackageInfo() {
     const pkgPath = path36.resolve(__dirname2, "..", "package.json");
     const pkg = JSON.parse(fs34.readFileSync(pkgPath, "utf8"));
     return {
-      name: typeof pkg.name === "string" ? pkg.name : "lima-code",
+      name: typeof pkg.name === "string" ? pkg.name : "lima",
       version: typeof pkg.version === "string" ? pkg.version : ""
     };
   } catch {
-    return { name: "lima-code", version: "" };
+    return { name: "lima", version: "" };
   }
 }
 /*! Bundled license information:

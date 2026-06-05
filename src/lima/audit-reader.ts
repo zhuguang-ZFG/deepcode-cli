@@ -11,7 +11,7 @@ export type LiMaAuditSummaryEntry = {
 };
 
 export function readRecentAuditEntries(projectRoot: string, limit = 10): LiMaAuditSummaryEntry[] {
-  const file = path.join(projectRoot, ".lima-code", "audit.jsonl");
+  const file = path.join(projectRoot, ".lima", "audit.jsonl");
   if (!fs.existsSync(file)) {
     return [];
   }

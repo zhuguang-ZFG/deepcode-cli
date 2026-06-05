@@ -55,11 +55,11 @@ test("lifecycle hooks write task context and summary under the project root", ()
 
 test("lifecycle hooks report write failures without throwing", () => {
   const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), "lima-hooks-file-"));
-  const blockedPath = path.join(projectRoot, ".lima-code");
+  const blockedPath = path.join(projectRoot, ".lima");
   fs.writeFileSync(blockedPath, "not a directory", "utf8");
 
   const start = writeLiMaTaskStartHook(projectRoot, task, activeSkills);
 
   assert.equal(start.ok, false);
-  assert.match(start.error, /\.lima-code/);
+  assert.match(start.error, /\.lima/);
 });

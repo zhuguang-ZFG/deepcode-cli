@@ -110,11 +110,11 @@ export function readPositiveIntegerEnv(name: string, defaultValue: number): numb
 }
 
 export function getLiMaRouterRequestTimeoutMs(): number {
-  return readPositiveIntegerEnv("LIMA_CODE_TUI_TIMEOUT_MS", DEFAULT_LIMA_ROUTER_REQUEST_TIMEOUT_MS);
+  return readPositiveIntegerEnv("LIMA_TUI_TIMEOUT_MS", DEFAULT_LIMA_ROUTER_REQUEST_TIMEOUT_MS);
 }
 
 export function getLiMaRouterMaxRetries(): number {
-  return Math.min(5, readPositiveIntegerEnv("LIMA_CODE_TUI_MAX_RETRIES", DEFAULT_LIMA_ROUTER_MAX_RETRIES));
+  return Math.min(5, readPositiveIntegerEnv("LIMA_TUI_MAX_RETRIES", DEFAULT_LIMA_ROUTER_MAX_RETRIES));
 }
 
 export function getCompactPromptTokenThreshold(model: string): number {

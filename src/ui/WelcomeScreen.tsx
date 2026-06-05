@@ -25,7 +25,7 @@ const SHORTCUT_TIPS = [
   { label: "Ctrl+V", description: "从剪贴板粘贴图片" },
   { label: "Esc", description: "中断当前模型回合" },
   { label: "/", description: "打开技能和命令菜单" },
-  { label: "Ctrl+D 两次", description: "退出 LiMa Code" },
+  { label: "Ctrl+D 两次", description: "退出 LiMa" },
 ];
 
 export type WelcomeAction = {
@@ -67,7 +67,7 @@ export function WelcomeScreen({ projectRoot, settings, skills, width }: WelcomeS
             paddingX={1}
           >
             <Box flexGrow={1} marginBottom={compact ? 1 : 0}>
-              <Text color={"#229ac3e6"}>{">"}_ LiMa Code </Text>
+              <Text color={"#229ac3e6"}>{">"}_ LiMa </Text>
               <Text color="gray"> (v{version || "unknown"})</Text>
             </Box>
             {!compact ? <Text> </Text> : null}

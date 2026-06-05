@@ -49,7 +49,7 @@ export type ModelConfigSelection = {
 
 export type SettingsProcessEnv = Record<string, string | undefined>;
 
-const LIMA_CODE_ENV_PREFIX = "LIMA_CODE_";
+const LIMA_ENV_PREFIX = "LIMA_";
 const LEGACY_DEEPCODE_ENV_PREFIX = "DEEPCODE_";
 
 function resolveReasoningEffort(value: unknown): ReasoningEffort | undefined {
@@ -106,15 +106,15 @@ function collectPrefixedEnv(processEnv: SettingsProcessEnv, prefix: string): Rec
   return result;
 }
 
-export function collectLiMaCodeEnv(processEnv: SettingsProcessEnv = process.env): Record<string, string> {
+export function collectlimaEnv(processEnv: SettingsProcessEnv = process.env): Record<string, string> {
   return {
     ...collectPrefixedEnv(processEnv, LEGACY_DEEPCODE_ENV_PREFIX),
-    ...collectPrefixedEnv(processEnv, LIMA_CODE_ENV_PREFIX),
+    ...collectPrefixedEnv(processEnv, LIMA_ENV_PREFIX),
   };
 }
 
 export function collectDeepcodeEnv(processEnv: SettingsProcessEnv = process.env): Record<string, string> {
-  return collectLiMaCodeEnv(processEnv);
+  return collectlimaEnv(processEnv);
 }
 
 function extractMcpEnv(env: Record<string, string>): Record<string, string> {
@@ -189,7 +189,7 @@ export function resolveSettingsSources(
 ): ResolvedDeepcodingSettings {
   const userEnv = normalizeEnv(userSettings?.env);
   const projectEnv = normalizeEnv(projectSettings?.env);
-  const systemEnv = collectLiMaCodeEnv(processEnv);
+  const systemEnv = collectlimaEnv(processEnv);
   const env = {
     ...userEnv,
     ...projectEnv,

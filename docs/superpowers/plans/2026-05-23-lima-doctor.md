@@ -1,12 +1,12 @@
-# LiMa Code Doctor Implementation Plan
+# LiMa Doctor Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add `/lima doctor`, a read-only preflight command for LiMa Code real-machine smoke testing.
+**Goal:** Add `/lima doctor`, a read-only preflight command for LiMa real-machine smoke testing.
 
 **Architecture:** Keep diagnostics in a focused `src/lima/doctor.ts` module. The parser recognizes `/lima doctor`, and the command runner delegates to the doctor module without executing tasks or mutating worker state.
 
-**Tech Stack:** TypeScript, Node.js `node:test`, existing LiMa Code command runner and local `.lima-code` state files.
+**Tech Stack:** TypeScript, Node.js `node:test`, existing LiMa command runner and local `.lima` state files.
 
 ---
 

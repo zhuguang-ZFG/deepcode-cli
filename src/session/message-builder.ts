@@ -119,7 +119,7 @@ export function getRepeatedToolCallLoopMessage(messages: SessionMessage[], toolC
       continue;
     }
     if ((previousCounts.get(signature) ?? 0) >= 2) {
-      return `The model repeated the same tool call several times, so LiMa Code stopped the loop before running it again: ${formatToolCallSignatureForDisplay(signature)}. Refine the prompt or use /continue if you want another pass.`;
+      return `The model repeated the same tool call several times, so LiMa stopped the loop before running it again: ${formatToolCallSignatureForDisplay(signature)}. Refine the prompt or use /continue if you want another pass.`;
     }
   }
 

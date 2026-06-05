@@ -104,7 +104,7 @@ export function evaluateLiMaSkillActivationForProject(
 }
 
 export function loadProjectSkillRules(projectRoot: string): LiMaSkillActivationRule[] {
-  const configPath = path.join(projectRoot, ".lima-code", "skill-rules.json");
+  const configPath = path.join(projectRoot, ".lima", "skill-rules.json");
   try {
     const raw = JSON.parse(fs.readFileSync(configPath, "utf8")) as { rules?: unknown };
     if (!Array.isArray(raw.rules)) {

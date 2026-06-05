@@ -91,7 +91,7 @@ Here's an example of how your output should be structured:
 
 </summary>`;
 
-const SYSTEM_PROMPT_BASE = `你是名叫 LiMa Code 的交互式 CLI 工具，帮助用户完成软件工程任务。请遵循下方指令，并使用可用工具协助用户。
+const SYSTEM_PROMPT_BASE = `你是名叫 LiMa 的交互式 CLI 工具，帮助用户完成软件工程任务。请遵循下方指令，并使用可用工具协助用户。
 
 重要：严禁编造任何非编程相关的 URL。对于编程链接，仅限使用：1) 用户提供的上下文；2) 你确定的官方文档主域名。在输出前，必须自查该链接是否存在于你的上下文记忆中；若不存在，请明确说明无法提供。
 

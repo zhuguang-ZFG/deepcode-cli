@@ -3,10 +3,10 @@
 <br/>
 <p align="center">
   <a href='https://github.com/zhuguang-ZFG/deepcode-cli'>
-    <img src='resources/lima-code-logo.svg' width='100' alt="LiMa Code logo"/>
+    <img src='resources/lima-logo.svg' width='100' alt="LiMa logo"/>
   </a>
 </p>
-<h1>LiMa Code CLI</h1>
+<h1>LiMa CLI</h1>
 
 [![][npm-release-shield]][npm-release-link] [![][npm-downloads-shield]][npm-downloads-link] [![][github-contributors-shield]][github-contributors-link] [![][github-forks-shield]][github-forks-link] [![][github-stars-shield]][github-stars-link]
 [![][github-issues-shield]][github-issues-link] [![][github-issues-pr-shield]][github-issues-pr-link] [![][github-license-shield]][github-license-link]
@@ -16,21 +16,21 @@
 <br/>
 </div>
 
-[LiMa Code](https://github.com/zhuguang-ZFG/deepcode-cli) 是面向 LiMa 个人编码助手体系改造的终端 AI 编码 worker。它保留 CLI 里的 vibe coding、Agent Skills、MCP、通知和多轮代码工作流，同时可以接入 LiMa Server，由 LiMa 负责模型路由、记忆、健康检查和后端选择。
+[LiMa](https://github.com/zhuguang-ZFG/deepcode-cli) 是面向 LiMa 个人编码助手体系改造的终端 AI 编码 worker。它保留 CLI 里的 vibe coding、Agent Skills、MCP、通知和多轮代码工作流，同时可以接入 LiMa Server，由 LiMa 负责模型路由、记忆、健康检查和后端选择。
 
 ## 安装
 
 ```bash
-npm install -g lima-code
+npm install -g lima
 ```
 
-在任意项目目录下运行 `lima-code` 即可启动。
+在任意项目目录下运行 `lima` 即可启动。
 
 ![intro2](resources/intro2.png)
 
 ## 配置
 
-创建 `~/.lima-code/settings.json` 文件，内容如下：
+创建 `~/.lima/settings.json` 文件，内容如下：
 
 ```json
 {
@@ -47,27 +47,27 @@ npm install -g lima-code
 也可以把密钥放到环境变量里：
 
 ```powershell
-$env:LIMA_CODE_MODEL = "lima-1.3"
-$env:LIMA_CODE_BASE_URL = "https://chat.donglicao.com/v1"
-$env:LIMA_CODE_API_KEY = "<YOUR_LIMA_API_KEY>"
-lima-code
+$env:LIMA_MODEL = "lima-1.3"
+$env:LIMA_BASE_URL = "https://chat.donglicao.com/v1"
+$env:LIMA_API_KEY = "<YOUR_LIMA_API_KEY>"
+lima
 ```
 
-旧的 `~/.deepcode/settings.json` 仍会作为 fallback 被读取，但新的 LiMa Code 配置应使用 `~/.lima-code/settings.json`。
+旧的 `~/.deepcode/settings.json` 仍会作为 fallback 被读取，但新的 LiMa 配置应使用 `~/.lima/settings.json`。
 
 完整配置说明（多层级优先级、环境变量等）请参阅 [docs/configuration.md](docs/configuration.md)。
 
 ## 主要功能
 
 ### **Skills**
-LiMa Code CLI 支持 agent skills，允许您扩展助手的能力：
+LiMa CLI 支持 agent skills，允许您扩展助手的能力：
 
 - **User-level Skills**：从 `~/.agents/skills/` 目录中发现并激活 skills。
 - **Project-level Skills**：从 `./.agents/skills/` 目录中加载项目专属 skills，并兼容旧的 `./.deepcode/skills/` 目录。
 
 ### **LiMa Server 接入**
 - 默认推荐接入 LiMa 的 OpenAI-compatible endpoint。
-- LiMa Code 负责本地 coding worker 体验，LiMa Server 负责模型路由、记忆、健康检查和安全策略。
+- LiMa 负责本地 coding worker 体验，LiMa Server 负责模型路由、记忆、健康检查和安全策略。
 - 支持 LiMa agent task contract、MCP preset 和任务结果归档的后续扩展。
 
 ### **OpenAI-compatible Provider**
@@ -108,37 +108,37 @@ LiMa Code CLI 支持 agent skills，允许您扩展助手的能力：
 
 ## 常见问题
 
-### LiMa Code 是否有 VSCode 插件？
+### LiMa 是否有 VSCode 插件？
 
-当前推荐先使用 CLI。旧 VSCode 插件仍可能能读取兼容配置，但还没有以 LiMa Code 新名称完成重新发布；README 不再把旧插件入口作为推荐安装路径。
+当前推荐先使用 CLI。旧 VSCode 插件仍可能能读取兼容配置，但还没有以 LiMa 新名称完成重新发布；README 不再把旧插件入口作为推荐安装路径。
 
-### LiMa Code 是否支持理解图片？
+### LiMa 是否支持理解图片？
 
-LiMa Code 支持从剪贴板粘贴图片，快捷键是 `Ctrl+V`。图片是否真正可被模型理解，取决于你接入的 LiMa 后端或 OpenAI-compatible provider 是否支持多模态。
+LiMa 支持从剪贴板粘贴图片，快捷键是 `Ctrl+V`。图片是否真正可被模型理解，取决于你接入的 LiMa 后端或 OpenAI-compatible provider 是否支持多模态。
 
 ### 怎样在任务完成后自动给 Slack 发消息？
 
-编写一个调用 Slack webhook 的 Shell 通知脚本，然后在 `~/.lima-code/settings.json` 中将 `notify` 字段设为该脚本的完整路径即可。详细步骤请参考 [docs/notify.md](docs/notify.md)。
+编写一个调用 Slack webhook 的 Shell 通知脚本，然后在 `~/.lima/settings.json` 中将 `notify` 字段设为该脚本的完整路径即可。详细步骤请参考 [docs/notify.md](docs/notify.md)。
 
 ### 怎样启用联网搜索功能？
 
-LiMa Code 自带 Web Search 工具。如果你希望使用自定义搜索脚本，可以在 `~/.lima-code/settings.json` 中将 `webSearchTool` 设为脚本的完整路径。
+LiMa 自带 Web Search 工具。如果你希望使用自定义搜索脚本，可以在 `~/.lima/settings.json` 中将 `webSearchTool` 设为脚本的完整路径。
 
 ### 如何配置 MCP？
 
-LiMa Code 支持 MCP（Model Context Protocol），可以连接 GitHub、浏览器、数据库等外部服务。在 `settings.json` 中配置 `mcpServers` 字段即可启用，启动后使用 `/mcp` 命令查看已配置的 MCP 服务器状态和可用工具。
+LiMa 支持 MCP（Model Context Protocol），可以连接 GitHub、浏览器、数据库等外部服务。在 `settings.json` 中配置 `mcpServers` 字段即可启用，启动后使用 `/mcp` 命令查看已配置的 MCP 服务器状态和可用工具。
 
 详细配置指南：[docs/mcp.md](docs/mcp.md)
 
-### 如何配置 LiMa Code 任务完成后发送通知？
+### 如何配置 LiMa 任务完成后发送通知？
 
-当 AI 助手完成一轮任务后，LiMa Code 可以自动执行一个通知脚本，将任务结果发送到你指定的渠道（如 Slack、系统通知等）。
+当 AI 助手完成一轮任务后，LiMa 可以自动执行一个通知脚本，将任务结果发送到你指定的渠道（如 Slack、系统通知等）。
 
 详细配置指南：[docs/notify.md](docs/notify.md)
 
 ### 是否支持 Coding Plan？
 
-支持。只要把 `~/.lima-code/settings.json` 的 `env.BASE_URL` 配置为 OpenAI 兼容的接口地址就行。以火山方舟的 Coding Plan 为例：
+支持。只要把 `~/.lima/settings.json` 的 `env.BASE_URL` 配置为 OpenAI 兼容的接口地址就行。以火山方舟的 Coding Plan 为例：
 
 ```json
 {
@@ -153,7 +153,7 @@ LiMa Code 支持 MCP（Model Context Protocol），可以连接 GitHub、浏览�
 
 ### 是否可以使用 LiMa 作为模型供应方？
 
-可以。LiMa Code 可以指向 LiMa 的 OpenAI-compatible endpoint，由 LiMa 负责模型路由、记忆和后端选择。推荐配置和安全边界见 [docs/lima_zh_CN.md](docs/lima_zh_CN.md)。
+可以。LiMa 可以指向 LiMa 的 OpenAI-compatible endpoint，由 LiMa 负责模型路由、记忆和后端选择。推荐配置和安全边界见 [docs/lima_zh_CN.md](docs/lima_zh_CN.md)。
 
 ## 贡献
 
@@ -162,7 +162,7 @@ LiMa Code 支持 MCP（Model Context Protocol），可以连接 GitHub、浏览�
 ```bash
 # 克隆仓库
 git clone https://github.com/zhuguang-ZFG/deepcode-cli.git
-cd lima-code
+cd lima
 
 # 安装依赖
 npm install
@@ -198,10 +198,10 @@ npm link
 
 <!-- LINK GROUP -->
 
-[npm-release-link]: https://www.npmjs.com/package/lima-code
-[npm-release-shield]: https://img.shields.io/npm/v/lima-code?color=4d6BFE&labelColor=black&logo=npm&logoColor=white&style=flat-square&cacheSeconds=1800
-[npm-downloads-link]: https://www.npmjs.com/package/lima-code
-[npm-downloads-shield]: https://img.shields.io/npm/dt/lima-code?labelColor=black&style=flat-square&color=4d6BFE&cacheSeconds=1800
+[npm-release-link]: https://www.npmjs.com/package/lima
+[npm-release-shield]: https://img.shields.io/npm/v/lima?color=4d6BFE&labelColor=black&logo=npm&logoColor=white&style=flat-square&cacheSeconds=1800
+[npm-downloads-link]: https://www.npmjs.com/package/lima
+[npm-downloads-shield]: https://img.shields.io/npm/dt/lima?labelColor=black&style=flat-square&color=4d6BFE&cacheSeconds=1800
 [github-contributors-link]: https://github.com/zhuguang-ZFG/deepcode-cli/graphs/contributors
 [github-contributors-shield]: https://img.shields.io/github/contributors/zhuguang-ZFG/deepcode-cli?color=4d6BFE&labelColor=black&style=flat-square&cacheSeconds=1800
 [github-forks-link]: https://github.com/zhuguang-ZFG/deepcode-cli/network/members

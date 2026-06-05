@@ -8,7 +8,7 @@ export const AsciiLogo = [
 
 export const BrandInfo = [
   "",
-  "  LiMa Code — 深圳市动力巢科技有限公司出品",
+  "  LiMa — 深圳市动力巢科技有限公司出品",
   "  动力巢科技（深圳）",
   "",
   "  特点：",

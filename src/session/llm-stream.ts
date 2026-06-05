@@ -107,7 +107,7 @@ export function buildLiMaRouterBlockedFallbackRequest(request: Record<string, un
       {
         role: "system",
         content:
-          "你是 LiMa Code。上一次带工具请求被上游路由拦截。请给出不使用工具的简洁兜底回答，说明被拦截的层级，不要假装本地检查已经成功。",
+          "你是 LiMa。上一次带工具请求被上游路由拦截。请给出不使用工具的简洁兜底回答，说明被拦截的层级，不要假装本地检查已经成功。",
       },
       {
         role: "user",

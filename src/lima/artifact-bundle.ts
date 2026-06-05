@@ -1,4 +1,4 @@
-/** Artifact bundle — structured review packet for LiMa Code task outputs.
+/** Artifact bundle — structured review packet for LiMa task outputs.
 
 Each task run writes to .lima/artifacts/<task_id>/:
   plan.md       — context, goal, constraints, suggested next slice

@@ -66,9 +66,9 @@ test("getRuntimeContext includes current date and model guidance", () => {
   assert.equal(prompt.includes('"root path": "/tmp/project"'), true);
 });
 
-test("getSystemPrompt uses readable LiMa Code base instructions", () => {
+test("getSystemPrompt uses readable LiMa base instructions", () => {
   const prompt = getSystemPrompt("/tmp/project");
-  assert.equal(prompt.includes("你是名叫 LiMa Code 的交互式 CLI 工具"), true);
+  assert.equal(prompt.includes("你是名叫 LiMa 的交互式 CLI 工具"), true);
   assert.equal(prompt.includes("浣犳槸"), false);
   assert.equal(prompt.includes("閲嶈"), false);
 });

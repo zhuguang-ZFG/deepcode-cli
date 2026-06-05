@@ -1,7 +1,7 @@
 {
-  "name": "lima-code",
+  "name": "lima",
   "version": "0.1.25",
-  "description": "LiMa Code - vibe coding with LiMa in your terminal",
+  "description": "LiMa - vibe coding with LiMa in your terminal",
   "license": "MIT",
   "type": "module",
   "repository": {
@@ -10,7 +10,7 @@
   },
   "homepage": "https://github.com/zhuguang-ZFG/deepcode-cli",
   "bin": {
-    "lima-code": "./dist/cli.js"
+    "lima": "./dist/cli.js"
   },
   "main": "./dist/cli.js",
   "files": [

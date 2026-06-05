@@ -89,7 +89,7 @@ export function resolveCurrentSettings(projectRoot: string = process.cwd()): Res
 }
 
 function getUserSettingsPath(): string {
-  return path.join(os.homedir(), ".lima-code", "settings.json");
+  return path.join(os.homedir(), ".lima", "settings.json");
 }
 
 function getLegacyUserSettingsPath(): string {
@@ -97,7 +97,7 @@ function getLegacyUserSettingsPath(): string {
 }
 
 function getProjectSettingsPath(projectRoot: string): string {
-  return path.join(projectRoot, ".lima-code", "settings.json");
+  return path.join(projectRoot, ".lima", "settings.json");
 }
 
 function getLegacyProjectSettingsPath(projectRoot: string): string {

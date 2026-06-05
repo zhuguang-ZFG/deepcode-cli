@@ -39,7 +39,7 @@ export function shouldQuarantineTask(
 }
 
 function quarantinePath(projectRoot: string): string {
-  return path.join(projectRoot, ".lima-code", "quarantine.json");
+  return path.join(projectRoot, ".lima", "quarantine.json");
 }
 
 function readState(projectRoot: string): QuarantineState {

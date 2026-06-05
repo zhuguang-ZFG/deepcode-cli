@@ -80,7 +80,7 @@ if (headless) {
   else {
     const readline = await import("readline");
     const rl = readline.createInterface({ input: process.stdin });
-    process.stderr.write("LiMa Code（headless）— 输入提示词后按 Enter：\n");
+    process.stderr.write("LiMa（headless）— 输入提示词后按 Enter：\n");
     for await (const line of rl) {
       const trimmed = line.trim();
       if (!trimmed || trimmed === "/exit") break;
@@ -92,7 +92,7 @@ if (headless) {
 
 // ── Human TUI mode ────────────────────────────────────────────────────────
 if (!headless && !process.stdin.isTTY && !process.env.LIMA_FORCE_TTY) {
-  process.stderr.write("lima-code 需要交互式终端（TTY）。请在真实终端会话中重新运行。\n");
+  process.stderr.write("lima 需要交互式终端（TTY）。请在真实终端会话中重新运行。\n");
   process.exit(1);
 }
 
@@ -147,7 +147,7 @@ function configureWindowsShell(): void {
     setShellIfWindows();
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    process.stderr.write(`lima-code: ${message}\n`);
+    process.stderr.write(`lima: ${message}\n`);
     process.exit(1);
   }
 }
@@ -157,10 +157,10 @@ function readPackageInfo(): PackageInfo {
     const pkgPath = path.resolve(__dirname, "..", "package.json");
     const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8")) as { name?: unknown; version?: unknown };
     return {
-      name: typeof pkg.name === "string" ? pkg.name : "lima-code",
+      name: typeof pkg.name === "string" ? pkg.name : "lima",
       version: typeof pkg.version === "string" ? pkg.version : "",
     };
   } catch {
-    return { name: "lima-code", version: "" };
+    return { name: "lima", version: "" };
   }
 }

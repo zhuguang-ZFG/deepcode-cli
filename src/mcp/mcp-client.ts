@@ -197,7 +197,7 @@ export class McpClient {
         {
           protocolVersion: "2025-03-26",
           capabilities: {},
-          clientInfo: { name: "lima-code", version: "0.1.0" },
+          clientInfo: { name: "lima", version: "0.1.0" },
         },
         timeoutMs
       )

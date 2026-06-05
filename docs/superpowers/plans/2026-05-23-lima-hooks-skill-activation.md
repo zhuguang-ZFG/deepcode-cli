@@ -1,12 +1,12 @@
-# LiMa Code Hooks + Skill Activation Implementation Plan
+# LiMa Hooks + Skill Activation Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
-**Goal:** Add a controlled LiMa Code worker hook layer that records task context and selects candidate skills before execution.
+**Goal:** Add a controlled LiMa worker hook layer that records task context and selects candidate skills before execution.
 
-**Architecture:** Keep the feature local to LiMa Code. Add one pure skill activation module, one file-system lifecycle hook module, and a narrow command runner integration point. The Server task contract and task runner execution semantics remain unchanged.
+**Architecture:** Keep the feature local to LiMa. Add one pure skill activation module, one file-system lifecycle hook module, and a narrow command runner integration point. The Server task contract and task runner execution semantics remain unchanged.
 
-**Tech Stack:** TypeScript, Node.js `node:test`, local `.lima-code` state files, existing LiMa Code command runner.
+**Tech Stack:** TypeScript, Node.js `node:test`, local `.lima` state files, existing LiMa command runner.
 
 ---
 
@@ -159,7 +159,7 @@ Expected: all selected tests pass.
 
 - [x] **Step 1: Write failing tests**
 
-Add tests proving `.lima-code/skill-rules.json` activates project rules and malformed config falls back to defaults.
+Add tests proving `.lima/skill-rules.json` activates project rules and malformed config falls back to defaults.
 
 - [x] **Step 2: Run tests to verify they fail**
 
@@ -173,7 +173,7 @@ Expected: FAIL because project rule loading does not exist.
 
 - [x] **Step 3: Implement rule loading**
 
-Add `evaluateLiMaSkillActivationForProject(task, projectRoot)` that merges default rules with valid `.lima-code/skill-rules.json` rules.
+Add `evaluateLiMaSkillActivationForProject(task, projectRoot)` that merges default rules with valid `.lima/skill-rules.json` rules.
 
 - [x] **Step 4: Wire command runner**
 

@@ -7,7 +7,7 @@ import { formatAuditSummary, readRecentAuditEntries } from "../lima/audit-reader
 
 test("readRecentAuditEntries returns newest entries first", () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "lima-audit-read-"));
-  const dir = path.join(root, ".lima-code");
+  const dir = path.join(root, ".lima");
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(
     path.join(dir, "audit.jsonl"),
@@ -26,7 +26,7 @@ test("readRecentAuditEntries returns newest entries first", () => {
 
 test("readRecentAuditEntries accepts current audit timestamp field", () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "lima-audit-read-"));
-  const dir = path.join(root, ".lima-code");
+  const dir = path.join(root, ".lima");
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(
     path.join(dir, "audit.jsonl"),

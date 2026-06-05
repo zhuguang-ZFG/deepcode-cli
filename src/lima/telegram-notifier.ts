@@ -37,10 +37,10 @@ const SECRET_PATTERNS: Array<[RegExp, string]> = [
 ];
 
 export function readLiMaTelegramConfig(env: NodeJS.ProcessEnv = process.env): LiMaTelegramConfig {
-  const botToken = (env.LIMA_CODE_TELEGRAM_BOT_TOKEN ?? "").trim();
-  const chatId = (env.LIMA_CODE_TELEGRAM_CHAT_ID ?? "").trim();
-  const proxyUrl = (env.LIMA_CODE_TELEGRAM_PROXY ?? "").trim();
-  const b2bRaw = (env.LIMA_CODE_TELEGRAM_B2B ?? "").trim().toLowerCase();
+  const botToken = (env.LIMA_TELEGRAM_BOT_TOKEN ?? "").trim();
+  const chatId = (env.LIMA_TELEGRAM_CHAT_ID ?? "").trim();
+  const proxyUrl = (env.LIMA_TELEGRAM_PROXY ?? "").trim();
+  const b2bRaw = (env.LIMA_TELEGRAM_B2B ?? "").trim().toLowerCase();
   const serverBotUsername = (env.LIMA_SERVER_BOT_USERNAME ?? "").trim().replace(/^@/, "");
   const b2bEnabled = b2bRaw === "1" || b2bRaw === "true" || b2bRaw === "yes" || b2bRaw === "on";
   const configured = Boolean(botToken && (chatId || (b2bEnabled && serverBotUsername)));
@@ -63,7 +63,7 @@ export function redactTelegramText(value: string): string {
 }
 
 export function formatLiMaTelegramEvent(event: LiMaTelegramEvent): string {
-  const lines = [`LiMa Code ${event.type}`];
+  const lines = [`LiMa ${event.type}`];
   if (event.taskId) {
     lines.push(`任务: ${event.taskId}`);
   }

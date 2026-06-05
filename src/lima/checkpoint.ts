@@ -2,8 +2,8 @@
  * Drone checkpoint — persist task execution state for crash recovery.
  *
  * Files:
- *   .lima-code/checkpoint.json          current + history
- *   .lima-code/snapshots/{taskId}/      file snapshots for rollback
+ *   .lima/checkpoint.json          current + history
+ *   .lima/snapshots/{taskId}/      file snapshots for rollback
  */
 
 import * as crypto from "crypto";
@@ -74,7 +74,7 @@ export function hasActiveCheckpoint(projectRoot: string): boolean {
 
 export function snapshotFiles(projectRoot: string, files: string[]): string {
   const taskId = `snap-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  const snapshotDir = path.join(projectRoot, ".lima-code", "snapshots", taskId);
+  const snapshotDir = path.join(projectRoot, ".lima", "snapshots", taskId);
   fs.mkdirSync(snapshotDir, { recursive: true });
 
   for (const relPath of files) {
@@ -130,7 +130,7 @@ export function isStale(checkpoint: Checkpoint, maxAgeMs = DEFAULT_STALE_MS): bo
 // ─── Internal ─────────────────────────────────────────────────────────────
 
 function checkpointPath(projectRoot: string): string {
-  return path.join(projectRoot, ".lima-code", "checkpoint.json");
+  return path.join(projectRoot, ".lima", "checkpoint.json");
 }
 
 function readStore(projectRoot: string): CheckpointStore {

@@ -23,7 +23,7 @@ export async function runDaemon(options: DaemonOptions): Promise<void> {
   });
 
   if (!client.isConfigured()) {
-    console.error("[daemon] LiMa Server not configured. Set LIMA_CODE_SERVER_URL and LIMA_CODE_API_KEY.");
+    console.error("[daemon] LiMa Server not configured. Set LIMA_SERVER_URL and LIMA_API_KEY.");
     process.exit(1);
   }
 

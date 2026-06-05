@@ -83,8 +83,8 @@ type LiMaCallResult = {
 
 function createHeadlessTelemetry(): HeadlessTelemetry {
   return {
-    timeoutMs: readPositiveIntEnv("LIMA_CODE_HEADLESS_TIMEOUT_MS", DEFAULT_MODEL_TIMEOUT_MS),
-    maxRetries: readPositiveIntEnv("LIMA_CODE_HEADLESS_RETRIES", DEFAULT_MODEL_RETRIES),
+    timeoutMs: readPositiveIntEnv("LIMA_HEADLESS_TIMEOUT_MS", DEFAULT_MODEL_TIMEOUT_MS),
+    maxRetries: readPositiveIntEnv("LIMA_HEADLESS_RETRIES", DEFAULT_MODEL_RETRIES),
     retryCount: 0,
     modelCalls: [],
     toolCapability: {

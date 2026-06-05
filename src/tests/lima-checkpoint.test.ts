@@ -73,7 +73,7 @@ test("checkpoint: clear moves previous to history", () => {
     saveCheckpoint(tmpDir, makeCheckpoint({ taskId: "second" }));
     clearCheckpoint(tmpDir);
     assert.equal(loadCheckpoint(tmpDir), null);
-    const raw = JSON.parse(fs.readFileSync(path.join(tmpDir, ".lima-code", "checkpoint.json"), "utf8"));
+    const raw = JSON.parse(fs.readFileSync(path.join(tmpDir, ".lima", "checkpoint.json"), "utf8"));
     assert.equal(raw.history.length, 2);
     assert.equal(raw.history[0].taskId, "second");
   } finally {

@@ -18,8 +18,8 @@ export class LiMaAgentTaskClient {
   private readonly fetchImpl: typeof fetch;
 
   constructor(config: LiMaAgentTaskClientConfig = {}) {
-    this.serverUrl = normalizeServerUrl(config.serverUrl ?? process.env.LIMA_CODE_SERVER_URL ?? "");
-    this.apiKey = (config.apiKey ?? process.env.LIMA_CODE_API_KEY ?? "").trim();
+    this.serverUrl = normalizeServerUrl(config.serverUrl ?? process.env.LIMA_SERVER_URL ?? "");
+    this.apiKey = (config.apiKey ?? process.env.LIMA_API_KEY ?? "").trim();
     this.fetchImpl = config.fetch ?? fetch;
   }
 
@@ -127,10 +127,10 @@ export class LiMaAgentTaskClient {
 
   private requireConfig(): LiMaAgentTaskClientResult<never> | { ok: true } {
     if (!this.serverUrl) {
-      return { ok: false, error: "LIMA_CODE_SERVER_URL or lima.serverUrl is required." };
+      return { ok: false, error: "LIMA_SERVER_URL or lima.serverUrl is required." };
     }
     if (!this.apiKey) {
-      return { ok: false, error: "LIMA_CODE_API_KEY or lima.apiKey is required." };
+      return { ok: false, error: "LIMA_API_KEY or lima.apiKey is required." };
     }
     return { ok: true };
   }

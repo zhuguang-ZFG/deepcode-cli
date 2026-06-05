@@ -10,9 +10,9 @@ import {
 
 test("readLiMaTelegramConfig reads outbound Telegram settings", () => {
   const config = readLiMaTelegramConfig({
-    LIMA_CODE_TELEGRAM_BOT_TOKEN: "bot-token",
-    LIMA_CODE_TELEGRAM_CHAT_ID: "12345",
-    LIMA_CODE_TELEGRAM_PROXY: "http://127.0.0.1:7897",
+    LIMA_TELEGRAM_BOT_TOKEN: "bot-token",
+    LIMA_TELEGRAM_CHAT_ID: "12345",
+    LIMA_TELEGRAM_PROXY: "http://127.0.0.1:7897",
   });
 
   assert.equal(config.configured, true);
@@ -25,8 +25,8 @@ test("readLiMaTelegramConfig reads outbound Telegram settings", () => {
 
 test("readLiMaTelegramConfig supports b2b without operator chat id", () => {
   const config = readLiMaTelegramConfig({
-    LIMA_CODE_TELEGRAM_BOT_TOKEN: "bot-token",
-    LIMA_CODE_TELEGRAM_B2B: "1",
+    LIMA_TELEGRAM_BOT_TOKEN: "bot-token",
+    LIMA_TELEGRAM_B2B: "1",
     LIMA_SERVER_BOT_USERNAME: "lima_router_bot",
   });
 
@@ -110,7 +110,7 @@ test("sendLiMaTelegramEvent posts to Telegram and hides token from result", asyn
   assert.equal(calls[0]?.url, `https://api.telegram.org/bot${botToken}/sendMessage`);
   assert.deepEqual(calls[0]?.body, {
     chat_id: "12345",
-    text: "LiMa Code task_started\n任务: task-1\n状态: running\nstarting",
+    text: "LiMa task_started\n任务: task-1\n状态: running\nstarting",
   });
 });
 

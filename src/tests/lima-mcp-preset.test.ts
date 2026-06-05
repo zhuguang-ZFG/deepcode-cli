@@ -11,8 +11,8 @@ test("buildLiMaMcpPreset builds LiMa Server MCP endpoint metadata from env", () 
   const result = buildLiMaMcpPreset(
     {},
     {
-      LIMA_CODE_BASE_URL: "https://chat.donglicao.com/v1",
-      LIMA_CODE_API_KEY: "test-key",
+      LIMA_BASE_URL: "https://chat.donglicao.com/v1",
+      LIMA_API_KEY: "test-key",
     }
   );
 
@@ -39,8 +39,8 @@ test("buildLiMaMcpPreset prefers explicit config over env", () => {
       apiKey: "explicit-key",
     },
     {
-      LIMA_CODE_BASE_URL: "https://chat.donglicao.com/v1",
-      LIMA_CODE_API_KEY: "env-key",
+      LIMA_BASE_URL: "https://chat.donglicao.com/v1",
+      LIMA_API_KEY: "env-key",
     }
   );
 
@@ -54,11 +54,11 @@ test("buildLiMaMcpPreset prefers explicit config over env", () => {
 test("buildLiMaMcpPreset fails safely without server URL or key", () => {
   assert.deepEqual(buildLiMaMcpPreset({}, {}), {
     ok: false,
-    error: "LiMa MCP preset requires LIMA_CODE_SERVER_URL or LIMA_CODE_BASE_URL.",
+    error: "LiMa MCP preset requires LIMA_SERVER_URL or LIMA_BASE_URL.",
   });
 
-  assert.deepEqual(buildLiMaMcpPreset({}, { LIMA_CODE_BASE_URL: "https://chat.donglicao.com" }), {
+  assert.deepEqual(buildLiMaMcpPreset({}, { LIMA_BASE_URL: "https://chat.donglicao.com" }), {
     ok: false,
-    error: "LiMa MCP preset requires LIMA_CODE_API_KEY.",
+    error: "LiMa MCP preset requires LIMA_API_KEY.",
   });
 });

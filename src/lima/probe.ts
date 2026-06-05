@@ -52,7 +52,7 @@ const SKIP_DIRS = new Set([
   "venv",
   "__pycache__",
   ".lima",
-  ".lima-code",
+  ".lima",
   "dist",
   "build",
   ".next",

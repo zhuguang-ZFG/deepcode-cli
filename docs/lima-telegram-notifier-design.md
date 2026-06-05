@@ -1,18 +1,18 @@
-# LiMa Code Telegram Notifier Design
+# LiMa Telegram Notifier Design
 
 Updated: 2026-05-23
 Status: implementation-ready
 
 ## Goal
 
-LiMa Code should send task lifecycle notifications to Telegram so the user can
-watch worker activity from a phone. This phase is outbound-only: LiMa Code does
+LiMa should send task lifecycle notifications to Telegram so the user can
+watch worker activity from a phone. This phase is outbound-only: LiMa does
 not accept Telegram commands directly.
 
 ## Architecture
 
 ```text
-LiMa Code command runner / work loop
+LiMa command runner / work loop
   -> telegram notifier
   -> Telegram Bot API
 ```
@@ -23,7 +23,7 @@ Telegram approval buttons continue to belong on the Server side.
 ## Boundaries
 
 1. No remote shell execution from Telegram.
-2. No inbound Telegram polling or webhook in LiMa Code.
+2. No inbound Telegram polling or webhook in LiMa.
 3. No secrets in messages, audit logs, or command output.
 4. Notifications are best-effort and must not fail the worker task.
 
@@ -31,9 +31,9 @@ Telegram approval buttons continue to belong on the Server side.
 
 | Variable | Required | Purpose |
 |---|---:|---|
-| `LIMA_CODE_TELEGRAM_BOT_TOKEN` | yes | Bot token used only for outbound messages. |
-| `LIMA_CODE_TELEGRAM_CHAT_ID` | yes | Single authorized chat target. |
-| `LIMA_CODE_TELEGRAM_PROXY` | no | Optional HTTP(S) proxy for Telegram API access. |
+| `LIMA_TELEGRAM_BOT_TOKEN` | yes | Bot token used only for outbound messages. |
+| `LIMA_TELEGRAM_CHAT_ID` | yes | Single authorized chat target. |
+| `LIMA_TELEGRAM_PROXY` | no | Optional HTTP(S) proxy for Telegram API access. |
 
 ## Events
 

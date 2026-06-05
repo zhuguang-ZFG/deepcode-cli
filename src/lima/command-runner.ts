@@ -59,14 +59,14 @@ export async function executeLiMaCommand(
   if (parsed.command.kind === "connect") {
     return client.isConfigured()
       ? { ok: true, message: "LiMa Server 连接已配置。" }
-      : { ok: false, message: "LiMa Server 尚未配置。请设置 LIMA_CODE_SERVER_URL 和 LIMA_CODE_API_KEY。" };
+      : { ok: false, message: "LiMa Server 尚未配置。请设置 LIMA_SERVER_URL 和 LIMA_API_KEY。" };
   }
 
   if (parsed.command.kind === "status") {
     return {
       ok: true,
       message: [
-        `LiMa Code 项目: ${options.projectRoot}`,
+        `LiMa 项目: ${options.projectRoot}`,
         `LiMa Server 配置: ${client.isConfigured() ? "已配置" : "未配置"}`,
       ].join("\n"),
     };
@@ -140,10 +140,10 @@ export async function executeLiMaCommand(
       return { ok: true, message: `已请求停止 LiMa worker: ${marker}` };
     }
     if (parsed.command.action === "start") {
-      if (process.env.LIMA_CODE_WORKER_DAEMON !== "1") {
+      if (process.env.LIMA_WORKER_DAEMON !== "1") {
         return {
           ok: false,
-          message: "常驻 daemon 受开关保护。经操作者批准后设置 LIMA_CODE_WORKER_DAEMON=1，再重试 /lima daemon start。",
+          message: "常驻 daemon 受开关保护。经操作者批准后设置 LIMA_WORKER_DAEMON=1，再重试 /lima daemon start。",
         };
       }
       return runWorkLoop({
@@ -222,7 +222,7 @@ function buildLocalReviewTask(projectRoot: string): LiMaTaskRunnerRequest {
 
 function formatLiMaStartWorkbench(projectRoot: string, serverConfigured: boolean): string {
   return [
-    "LiMa Code 工作台",
+    "LiMa 工作台",
     `项目: ${projectRoot}`,
     `LiMa Server 配置: ${serverConfigured ? "已配置" : "未配置"}`,
     "",
@@ -241,7 +241,7 @@ function formatLiMaStartWorkbench(projectRoot: string, serverConfigured: boolean
 
 export function formatVibeWorkflowHelp(): string {
   return [
-    "LiMa Code vibe coding workflow:",
+    "LiMa vibe coding workflow:",
     "1. /lima doctor  - confirm server, keys, worker, and audit state",
     "2. /lima plan    - turn the idea into an implementation plan",
     "3. /lima test    - run the project test command and inspect failures",
@@ -257,7 +257,7 @@ function buildLocalPlanTask(projectRoot: string): LiMaTaskRunnerRequest {
     task_id: "local-plan",
     repo: projectRoot,
     branch: "local",
-    goal: "Plan the next LiMa Code work slice",
+    goal: "Plan the next LiMa work slice",
     constraints: [
       "Keep the plan scoped to the current repository.",
       "Prefer small, testable changes with explicit verification commands.",

@@ -1,8 +1,8 @@
-# LiMa Code Doctor Design
+# LiMa Doctor Design
 
 ## Purpose
 
-LiMa Code needs a safe preflight command before real-machine testing. The command should tell the user whether the local worker is ready to talk to LiMa Server and run a bounded smoke task, without fetching and executing work.
+LiMa needs a safe preflight command before real-machine testing. The command should tell the user whether the local worker is ready to talk to LiMa Server and run a bounded smoke task, without fetching and executing work.
 
 ## Scope
 

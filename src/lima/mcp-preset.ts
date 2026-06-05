@@ -29,15 +29,15 @@ export function buildLiMaMcpPreset(
   }
 
   const baseUrl = normalizeLiMaServerUrl(
-    config.serverUrl ?? env.LIMA_CODE_SERVER_URL ?? env.LIMA_CODE_BASE_URL ?? env.DEEPCODE_BASE_URL
+    config.serverUrl ?? env.LIMA_SERVER_URL ?? env.LIMA_BASE_URL ?? env.DEEPCODE_BASE_URL
   );
   if (!baseUrl) {
-    return { ok: false, error: "LiMa MCP preset requires LIMA_CODE_SERVER_URL or LIMA_CODE_BASE_URL." };
+    return { ok: false, error: "LiMa MCP preset requires LIMA_SERVER_URL or LIMA_BASE_URL." };
   }
 
-  const apiKey = (config.apiKey ?? env.LIMA_CODE_API_KEY ?? env.DEEPCODE_API_KEY ?? "").trim();
+  const apiKey = (config.apiKey ?? env.LIMA_API_KEY ?? env.DEEPCODE_API_KEY ?? "").trim();
   if (!apiKey) {
-    return { ok: false, error: "LiMa MCP preset requires LIMA_CODE_API_KEY." };
+    return { ok: false, error: "LiMa MCP preset requires LIMA_API_KEY." };
   }
 
   return {

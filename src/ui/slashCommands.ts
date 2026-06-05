@@ -89,7 +89,7 @@ export const BUILTIN_SLASH_COMMANDS: SlashCommandItem[] = [
     kind: "exit",
     name: "exit",
     label: "/exit",
-    description: "退出 LiMa Code",
+    description: "退出 LiMa",
   },
 ];
 

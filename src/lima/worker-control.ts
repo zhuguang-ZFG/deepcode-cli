@@ -29,5 +29,5 @@ export function readWorkerStop(projectRoot: string): { stop: boolean; reason: st
 }
 
 function stopMarkerPath(projectRoot: string): string {
-  return path.join(projectRoot, ".lima-code", "worker.stop.json");
+  return path.join(projectRoot, ".lima", "worker.stop.json");
 }

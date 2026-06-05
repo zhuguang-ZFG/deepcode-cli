@@ -60,13 +60,13 @@ test("evaluateLiMaSkillActivation deduplicates rules and includes file based rev
 
 test("evaluateLiMaSkillActivationForProject activates project skill rules", () => {
   const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), "lima-skill-rules-"));
-  fs.mkdirSync(path.join(projectRoot, ".lima-code"), { recursive: true });
+  fs.mkdirSync(path.join(projectRoot, ".lima"), { recursive: true });
   fs.writeFileSync(
-    path.join(projectRoot, ".lima-code", "skill-rules.json"),
+    path.join(projectRoot, ".lima", "skill-rules.json"),
     JSON.stringify({
       rules: [
         {
-          name: "lima-code:telegram-review",
+          name: "lima:telegram-review",
           reason: "Telegram changes require callback and secret review.",
           keywords: ["telegram", "callback", "bot"],
           files: ["src/lima/*.ts"],
@@ -89,15 +89,15 @@ test("evaluateLiMaSkillActivationForProject activates project skill rules", () =
   );
 
   assert.equal(
-    active.some((skill) => skill.name === "lima-code:telegram-review"),
+    active.some((skill) => skill.name === "lima:telegram-review"),
     true
   );
 });
 
 test("evaluateLiMaSkillActivationForProject ignores malformed project rules", () => {
   const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), "lima-bad-skill-rules-"));
-  fs.mkdirSync(path.join(projectRoot, ".lima-code"), { recursive: true });
-  fs.writeFileSync(path.join(projectRoot, ".lima-code", "skill-rules.json"), "{not-json", "utf8");
+  fs.mkdirSync(path.join(projectRoot, ".lima"), { recursive: true });
+  fs.writeFileSync(path.join(projectRoot, ".lima", "skill-rules.json"), "{not-json", "utf8");
 
   const active = evaluateLiMaSkillActivationForProject(
     buildTask({

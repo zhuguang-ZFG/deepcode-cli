@@ -41,7 +41,7 @@ export function findGitBashPath(): string {
   }
 
   throw new Error(
-    "LiMa Code on Windows requires Git Bash. Install Git for Windows, or ensure Git's bash.exe is available in PATH."
+    "LiMa on Windows requires Git Bash. Install Git for Windows, or ensure Git's bash.exe is available in PATH."
   );
 }
 

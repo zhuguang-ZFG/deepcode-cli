@@ -1,4 +1,4 @@
-﻿# LiMa Code 配置
+﻿# LiMa 配置
 
 ## 配置层级
 
@@ -13,14 +13,14 @@
 
 ## 设置文件
 
-LiMa Code 使用 `settings.json` 设置文件进行持久化配置，支持两个层级的存放位置：
+LiMa 使用 `settings.json` 设置文件进行持久化配置，支持两个层级的存放位置：
 
 | 文件类型     | 位置                                 | 作用范围                                              |
 | ------------ | ---------------------------------- | ---------------------------------------------------- |
-| 用户设置文件 | `~/.lima-code/settings.json`         | 适用于当前用户的所有 LiMa Code 会话。                      |
-| 项目设置文件 | `项目根目录/.lima-code/settings.json` | 仅在该特定项目中运行 LiMa Code 时生效。项目设置会覆盖用户设置。 |
+| 用户设置文件 | `~/.lima/settings.json`         | 适用于当前用户的所有 LiMa 会话。                      |
+| 项目设置文件 | `项目根目录/.lima/settings.json` | 仅在该特定项目中运行 LiMa 时生效。项目设置会覆盖用户设置。 |
 
-旧的 `~/.deepcode/settings.json` 和 `项目根目录/.deepcode/settings.json` 仍会作为 fallback 被读取。新的写入默认使用 `.lima-code`；如果某个项目只有旧 `.deepcode/settings.json`，模型选择写入会继续更新这个旧项目配置，避免生成两份项目配置。
+旧的 `~/.deepcode/settings.json` 和 `项目根目录/.deepcode/settings.json` 仍会作为 fallback 被读取。新的写入默认使用 `.lima`；如果某个项目只有旧 `.deepcode/settings.json`，模型选择写入会继续更新这个旧项目配置，避免生成两份项目配置。
 
 ### `settings.json` 中的可用设置
 
@@ -89,7 +89,7 @@ LiMa Code 使用 `settings.json` 设置文件进行持久化配置，支持两�
 
 #### `webSearchTool` — 自定义联网搜索
 
-LiMa Code 内置免费可用的 Web Search 工具。如果需要自定义搜索逻辑，可将 `webSearchTool` 设为一个可执行脚本的完整路径：
+LiMa 内置免费可用的 Web Search 工具。如果需要自定义搜索逻辑，可将 `webSearchTool` 设为一个可执行脚本的完整路径：
 
 ```json
 {
@@ -123,7 +123,7 @@ MCP（Model Context Protocol）服务器配置。值是键值对，键为服务�
 | `args`               | string[] | 否   | 传递给命令的参数列表                                                  |
 | `env`                | object   | 否   | 传递给 MCP 服务器进程的环境变量                                       |
 
-> 当 `command` 为 `npx` 时，LiMa Code 会自动在参数前补充 `-y`。
+> 当 `command` 为 `npx` 时，LiMa 会自动在参数前补充 `-y`。
 
 详细 MCP 使用说明请参考 [mcp.md](mcp.md)。
 
@@ -141,11 +141,11 @@ MCP（Model Context Protocol）服务器配置。值是键值对，键为服务�
 环境变量优先级遵循“越具体、越局部的配置，优先级越高”和“env文件默认保护现有环境，系统变量高于env文件”的覆盖逻辑。(settings.json的env对象可以认为是一种env文件)
 
 优先级层级 (由低到高)
-1. settings.json 外层的 env：这是针对整个工具及其所有子进程的通用配置（全局变量）。可被外层环境变量覆盖，但环境变量KEY会移除`LIMA_CODE_`前缀。
+1. settings.json 外层的 env：这是针对整个工具及其所有子进程的通用配置（全局变量）。可被外层环境变量覆盖，但环境变量KEY会移除`LIMA_`前缀。
 2. settings.json mcpServers 内定义的 env：这是针对特定 MCP 服务的最具体配置（局部变量）。可被外层环境变量覆盖，但环境变量KEY会移除`MCP_`前缀。
 3. Shell 环境系统变量：操作系统层面的环境变量。
 
-旧的 `DEEPCODE_*` 环境变量仍会作为 fallback 被读取。如果同一个 key 同时存在 `LIMA_CODE_*` 和 `DEEPCODE_*`，以 `LIMA_CODE_*` 为准。
+旧的 `DEEPCODE_*` 环境变量仍会作为 fallback 被读取。如果同一个 key 同时存在 `LIMA_*` 和 `DEEPCODE_*`，以 `LIMA_*` 为准。
 
 ### 场景
 
@@ -156,7 +156,7 @@ MCP（Model Context Protocol）服务器配置。值是键值对，键为服务�
 1. 硬编码默认值: `""`
 2. 用户级settings.json: `{"env": {"API_KEY": "abc123"}}`
 3. 项目级settings.json: `{"env": {"API_KEY": "abc123"}}`
-4. 系统环境变量: `LIMA_CODE_API_KEY=abc123 lima-code`
+4. 系统环境变量: `LIMA_API_KEY=abc123 lima`
 
 #### 二、设置模型的model, thinkingEnabled, reasoningEffort
 
@@ -167,7 +167,7 @@ MCP（Model Context Protocol）服务器配置。值是键值对，键为服务�
 3. 用户级settings.json: `{"thinkingEnabled": true}`
 4. 项目级settings.json: `{"env": {"THINKING_ENABLED": "true"}}`
 5. 项目级settings.json: `{"thinkingEnabled": true}`
-6. 系统环境变量: `LIMA_CODE_THINKING_ENABLED=true lima-code`
+6. 系统环境变量: `LIMA_THINKING_ENABLED=true lima`
 
 #### 三、设置启动notify, webSearchTool等外挂脚本的环境变量
 
@@ -176,7 +176,7 @@ MCP（Model Context Protocol）服务器配置。值是键值对，键为服务�
 1. 硬编码默认值：`os.environ.get('WEBHOOK', '...')  # notify脚本代码`
 2. 用户级settings.json: `{"env": {"WEBHOOK": "..."}}`
 3. 项目级settings.json: `{"env": {"WEBHOOK": "true"}}`
-4. 系统环境变量: `LIMA_CODE_WEBHOOK=... lima-code`
+4. 系统环境变量: `LIMA_WEBHOOK=... lima`
 
 #### 四、设置MCP Service的环境变量
 
@@ -186,4 +186,4 @@ MCP（Model Context Protocol）服务器配置。值是键值对，键为服务�
 2. 用户级settings.json: `{"env": {"MCP_GITHUB_PERSONAL_ACCESS_TOKEN": "..."}}`
 3. 项目级settings.json: `{"mcpServers":{"github":{"env":{"GITHUB_PERSONAL_ACCESS_TOKEN":"..."}}}}`
 4. 项目级settings.json: `{"env": {"MCP_GITHUB_PERSONAL_ACCESS_TOKEN": "..."}}`
-5. 系统环境变量: `LIMA_CODE_MCP_GITHUB_PERSONAL_ACCESS_TOKEN=... lima-code`
+5. 系统环境变量: `LIMA_MCP_GITHUB_PERSONAL_ACCESS_TOKEN=... lima`

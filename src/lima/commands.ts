@@ -126,7 +126,7 @@ export function formatLiMaCommandHelp(): string {
     "/lima audit [--last <n>]",
     "/lima daemon status",
     "/lima daemon stop",
-    "/lima daemon start [--max-minutes <n>] [--interval-ms <ms>] [--backoff-ms <ms>]  (requires LIMA_CODE_WORKER_DAEMON=1)",
+    "/lima daemon start [--max-minutes <n>] [--interval-ms <ms>] [--backoff-ms <ms>]  (requires LIMA_WORKER_DAEMON=1)",
     "/lima work --once",
     "/lima work --loop --max-tasks <n> [--max-minutes <n>] [--interval-ms <ms>] [--backoff-ms <ms>]",
     "/lima task <task_id>",
